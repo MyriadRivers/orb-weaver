@@ -62,6 +62,7 @@ const Canvas = () => {
         synth.triggerAttackRelease(rand(200, 2000), "4n");
     }
 
+    // Animates a line cumulatively
     const animateLine = (line: Line): void => {
         // Make the width a little more visible for now
         if (ctxRef.current != null) {
@@ -84,6 +85,11 @@ const Canvas = () => {
         var prevX = line.x1;
         var prevY = line.y1;
 
+        // Set up the sound generation so it happens as the line is being drawn
+        const osc = new Tone.Oscillator().toDestination();
+        osc.frequency.value = line.y1;
+        osc.start();
+
         const animateStep = (): void => {
             // Speed is one unit of distance per time (update?)
             if (t < dist) {
@@ -95,17 +101,26 @@ const Canvas = () => {
                 prevY = y;
                 x = line.x1 + ((line.x2 - line.x1) / dist) * t;
                 y = line.y1 + ((line.y2 - line.y1) / dist) * t;
+                
                 drawLine(prevX, prevY, x, y);
+                // sonify the line as it's being drawn
+                osc.frequency.rampTo(y, 0);
+
                 t++;
                 window.requestAnimationFrame(animateStep);
+            } else {
+                // Stop all sound when the line is finished animating
+                // TODO: Maybe hold the pitch a little bit so it doesn't sharp cut off?
+                osc.stop();
             }
         }
         animateStep()
         
     }
 
+    // Dummy function to add to the demo button callback
     const addLine = () => {
-        animateLine(new Line(20, 40, 600, 300));
+        animateLine(new Line(20, 220, 40, 440));
     }
 
     const addSquare = () => {
