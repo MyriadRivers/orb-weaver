@@ -63,6 +63,10 @@ const Canvas = () => {
     }
 
     const animateLine = (line: Line): void => {
+        // Make the width a little more visible for now
+        if (ctxRef.current != null) {
+            ctxRef.current.lineWidth = 3;
+        }
 
         // Draws a line from (x1, y1) to (x2, y2) in the canvas
         const drawLine = (x1: number, y1: number, x2: number, y2: number): void => {
@@ -83,6 +87,7 @@ const Canvas = () => {
         const animateStep = (): void => {
             // Speed is one unit of distance per time (update?)
             if (t < dist) {
+                // Randomize the color of every step so we can confirm it's drawing cumulatively
                 if (ctxRef.current != null) {
                     ctxRef.current.strokeStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
                 }
@@ -100,7 +105,7 @@ const Canvas = () => {
     }
 
     const addLine = () => {
-        animateLine(new Line(20, 20, 600, 600));
+        animateLine(new Line(20, 40, 600, 300));
     }
 
     const addSquare = () => {
