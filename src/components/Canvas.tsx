@@ -65,10 +65,11 @@ const Canvas = () => {
     /**
      * Spins a line of silk and sound.
      * @param line The line to be animated and played.
-     * @param speed The speed at which to spin the line.
      * @returns Promise is resolved when the line is finished spinning.
      */
-    const spinLine = (line: Line, speed: number = 1): Promise<void> => {
+    const spinLine = (line: Line): Promise<void> => {
+        const speed = 30;
+
         return new Promise(resolve => {
             // Make the width a little more visible for now
             if (ctxRef.current != null) {
@@ -99,7 +100,7 @@ const Canvas = () => {
             // Plays one step of the animation and sound tied to the line
             const lineStep = (): void => {
                 // Speed is one unit of distance per time (update?)
-                if (t * speed < dist) {
+                if (t <= dist) {
                     // Randomize the color of every step so we can confirm it's drawing cumulatively
                     if (ctxRef.current != null) {
                         ctxRef.current.strokeStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
@@ -108,15 +109,27 @@ const Canvas = () => {
                     prevX = x;
                     prevY = y;
                     // Parametric equations for the line
-                    x = line.x1 + ((line.x2 - line.x1) / dist) * t * speed;
-                    y = line.y1 + ((line.y2 - line.y1) / dist) * t * speed;
+                    x = line.x1 + ((line.x2 - line.x1) / dist) * t;
+                    y = line.y1 + ((line.y2 - line.y1) / dist) * t;
                     
                     // Draw the silk being spun
                     drawLine(prevX, prevY, x, y);
                     // Play the silk being spun
                     osc.frequency.rampTo(y, 0);
 
-                    t++;
+                    // If the step size, as set by the speed, is too big and adding another step to the line will go over the actual distance...
+                    if (t + speed < dist) {
+                        t += speed;
+                    } else if (t < dist) {
+                        // ...then we figure out how much distance is left from the current step to actual distance, and add a substep of that exact size
+                        console.log("distance: " + dist + " time: " + t);
+                        var distanceLeft = dist - t;
+                        t += distanceLeft;
+                        console.log("distance: " + dist + " time: " + t);
+                    } else {
+                        // And finally we increment t one more time to end the loop.
+                        t++;
+                    }
                     window.requestAnimationFrame(lineStep);
                 } else {
                     // Stop all sound when the line is finished animating
