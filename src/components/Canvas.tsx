@@ -20,9 +20,9 @@ class Line {
 //     sound(): void;
 // }
 
-const rand = (min: number, max: number): number => {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-}
+// const rand = (min: number, max: number): number => {
+//     return Math.floor(Math.random() * (max - min + 1) + min);
+// }
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -49,21 +49,26 @@ const Canvas = () => {
     //     }); 
     // }, [activeLines])
 
-    const draw = (line: Line): void => {
-        if (canvasRef.current != null && ctxRef.current != null) {
-            ctxRef.current.fillStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
-            ctxRef.current.fillRect(rand(0, canvasRef.current.width), rand(0, canvasRef.current.height), 
-            rand(0, 100), rand(0, 100));
-        }
-    }
+    // const draw = (line: Line): void => {
+    //     if (canvasRef.current != null && ctxRef.current != null) {
+    //         ctxRef.current.fillStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
+    //         ctxRef.current.fillRect(rand(0, canvasRef.current.width), rand(0, canvasRef.current.height), 
+    //         rand(0, 100), rand(0, 100));
+    //     }
+    // }
 
-    const sound = (line: Line): void => {
-        const synth = new Tone.Synth().toDestination();
-        synth.triggerAttackRelease(rand(200, 2000), "4n");
-    }
+    // const sound = (line: Line): void => {
+    //     const synth = new Tone.Synth().toDestination();
+    //     synth.triggerAttackRelease(rand(200, 2000), "4n");
+    // }
 
-    // Animates a line cumulatively
-    const spinLine = (line: Line): Promise<void> => {
+    /**
+     * Spins a line of silk and sound.
+     * @param line The line to be animated and played.
+     * @param speed The speed at which to spin the line.
+     * @returns Promise is resolved when the line is finished spinning.
+     */
+    const spinLine = (line: Line, speed: number = 1): Promise<void> => {
         return new Promise(resolve => {
             // Make the width a little more visible for now
             if (ctxRef.current != null) {
@@ -92,9 +97,9 @@ const Canvas = () => {
             osc.start();
 
             // Plays one step of the animation and sound tied to the line
-            const animateStep = (): void => {
+            const lineStep = (): void => {
                 // Speed is one unit of distance per time (update?)
-                if (t < dist) {
+                if (t * speed < dist) {
                     // Randomize the color of every step so we can confirm it's drawing cumulatively
                     if (ctxRef.current != null) {
                         ctxRef.current.strokeStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
@@ -103,15 +108,16 @@ const Canvas = () => {
                     prevX = x;
                     prevY = y;
                     // Parametric equations for the line
-                    x = line.x1 + ((line.x2 - line.x1) / dist) * t;
-                    y = line.y1 + ((line.y2 - line.y1) / dist) * t;
+                    x = line.x1 + ((line.x2 - line.x1) / dist) * t * speed;
+                    y = line.y1 + ((line.y2 - line.y1) / dist) * t * speed;
                     
+                    // Draw the silk being spun
                     drawLine(prevX, prevY, x, y);
-                    // sonify the line as it's being drawn
+                    // Play the silk being spun
                     osc.frequency.rampTo(y, 0);
 
                     t++;
-                    window.requestAnimationFrame(animateStep);
+                    window.requestAnimationFrame(lineStep);
                 } else {
                     // Stop all sound when the line is finished animating
                     // TODO: Maybe hold the pitch a little bit so it doesn't sharp cut off?
@@ -119,11 +125,11 @@ const Canvas = () => {
                     resolve();
                 }
             }
-            animateStep()
+            lineStep()
         });
     }
 
-    const scheduleLines = async (currentLines: Array<Line>): Promise<void[]> => {
+    const weaveLines = async (currentLines: Array<Line>): Promise<void[]> => {
         // Append active and passive lines into a new list
         setPassiveLines([...passiveLines, ...activeLines]);
         setActiveLines(currentLines);
@@ -131,28 +137,34 @@ const Canvas = () => {
         return await Promise.all(currentLines.map(spinLine));
     }
 
-    const weaveWeb = () => {
-        scheduleLines([new Line(0, 0, 200, 200)])
-            .then((result) => scheduleLines([new Line(200, 0, 0, 200), new Line(0, 100, 200, 100)]))
+    // Actual sequence for weaving the web
+    const weaveWeb = async () => {
+        if (canvasRef.current != null) {
+            var initY = 20;
+            var width = canvasRef.current.width;
+            var height = canvasRef.current.height;
+
+            // Calling await has them execute in sequence
+            await weaveLines([new Line(0, initY, width, initY)]);
+            await weaveLines([new Line(0, initY, width / 2, height / 2), new Line(width, initY, width / 2, height / 2)]);
+        }   
     }
 
     // Dummy function to add to the demo button callback
-    const addLine = () => {
-        spinLine(new Line(20, 220, 40, 440));
-    }
+    // const addLine = () => {
+    //     spinLine(new Line(20, 220, 40, 440));
+    // }
 
-    // Dummy function to see if renders active and passive line states are working properly
-    const addSquare = () => {
-        setPassiveLines([...passiveLines, ...activeLines])
-        setActiveLines([new Line(rand(0, 100), rand(0, 100), rand(0, 100), rand(0, 100))]);
-        console.log(passiveLines.length);
-    }
+    // // Dummy function to see if renders active and passive line states are working properly
+    // const addSquare = () => {
+    //     setPassiveLines([...passiveLines, ...activeLines])
+    //     setActiveLines([new Line(rand(0, 100), rand(0, 100), rand(0, 100), rand(0, 100))]);
+    //     console.log(passiveLines.length);
+    // }
 
     return (
         <div>
             <canvas ref={canvasRef}></canvas>
-            <button onClick={addSquare}>Add Square</button>
-            <button onClick={addLine}>Add Line</button>
             <button onClick={weaveWeb}>weave</button>
         </div>
     )
