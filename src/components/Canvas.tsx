@@ -162,6 +162,16 @@ const Canvas = () => {
                 ctxRef.current?.stroke();
             }
 
+            /**
+             * Sonifies a point p.
+             * @param p Point to sonify.
+             */
+            const soundPoint = (p: Vector): void => {
+                if (axisA != null && axisB != null && axisC != null) {
+                    osc.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
+                }
+            }
+
             // Set up parameters to iterate through line
             var t = 0;
             var dist = Math.sqrt(Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2));
@@ -199,9 +209,7 @@ const Canvas = () => {
                     drawLine(prevPoint, newPoint);
 
                     // Play the line step being spun
-                    if (axisA != null && axisB != null && axisC != null) {
-                        osc.frequency.rampTo(220 + newPoint.percentOf(axisA) * 880, 0);
-                    }
+                    soundPoint(newPoint);
 
                     // If the step size, as set by the speed, is too big and adding another step to the line will go over the actual distance...
                     if (t + speed < dist) {
