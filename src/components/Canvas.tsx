@@ -1,18 +1,87 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
 
-class Line {
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
+class Vector {
+    x: number;
+    y: number;
 
-    constructor(startX: number, startY: number, endX: number, endY: number) {
-        this.x1 = startX;
-        this.y1 = startY;
-        this.x2 = endX;
-        this.y2 = endY;
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
     }
+
+    /**
+     * Projects the Vector onto a Line and finds its component in the direction of the Line as a scale value of the Line.
+     * @param line Line to project Vector onto.
+     * @returns Scale of where the Vector lies when projected onto the line, 0 is the start and 1 is the end of the line.
+     */
+    percentOf(line: Line): number {
+        const lineX = line.end.x - line.start.x;
+        const lineY = line.end.y - line.start.y;
+        const lineVector = new Vector(lineX, lineY);
+        return dot(this, lineVector) / Math.pow(mag(lineVector), 2);
+    }
+}
+
+class Line {
+    start: Vector;
+    end: Vector;
+
+    constructor(start: Vector, end: Vector) {
+        this.start = start;
+        this.end = end;
+    }
+}
+
+/**
+ * Scales a number up to the randomFactor.
+ * @param num Number to add some randomness to.
+ * @param randomFactor Maximum percent that number can be scaled up or down.
+ * @returns Fuzzed number.
+ */
+const fuzz = (num: number, randomFactor: number = 0.1): number => {
+    return num + num * (randomFactor * (Math.random() * 2 - 1));
+}
+
+/**
+ * Calculates the dot product of two Vectors.
+ * @param u First Vector.
+ * @param v Second Vector.
+ * @returns dot product scalar of the two Vector.
+ */
+const dot = (u: Vector, v: Vector): number => {
+    return u.x * v.x + u.y * v.y;
+}
+
+/**
+ * Finds the magnitude of a vector.
+ * @param u Vector to find magnitude of.
+ * @returns Magnitude of vector u.
+ */
+const mag = (u: Vector): number => {
+    return Math.sqrt(Math.pow(u.x, 2) + Math.pow(u.y, 2));
+}
+
+/**
+ * Finds the intersection point of two Lines.
+ * @param a First Line.
+ * @param b Second Line.
+ * @returns Intersection point of the two lines.
+ */
+const intersect = (a: Line, b: Line): Vector => {
+    // Use standard formulas of the two lines, ax + bx + c = 0, to solve for the intercept
+    const aA = a.end.y - a.start.y;
+    const aB = a.end.x - a.start.x;
+    const aC = a.end.x * a.start.y - a.end.y * a.start.x;
+
+    const bA = b.end.y - b.start.y;
+    const bB = b.end.x - b.start.x;
+    const bC = b.end.x * b.start.y - b.end.y * b.start.x;
+
+    const xIntersect = (aB * bC - bB * aC) / (aA * bB - aB * bA);
+    const yIntersect = - (bA * aC - aA * bC) / (bB * aA - bA * aB);
+
+    return new Vector(xIntersect, yIntersect);
 }
 
 // interface CanvasProps {
@@ -20,7 +89,7 @@ class Line {
 //     sound(): void;
 // }
 
-// const rand = (min: number, max: number): number => {
+// const rng = (min: number, max: number): number => {
 //     return Math.floor(Math.random() * (max - min + 1) + min);
 // }
 
@@ -30,6 +99,11 @@ const Canvas = () => {
 
     const [activeLines, setActiveLines] = useState(new Array<Line>());
     const [passiveLines, setPassiveLines] = useState(new Array<Line>());
+
+    // The three major axes for determining sound
+    var axisA: Line | null = null;
+    var axisB: Line | null = null;
+    var axisC: Line | null = null;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -68,7 +142,7 @@ const Canvas = () => {
      * @returns Promise is resolved when the line is finished spinning.
      */
     const spinLine = (line: Line): Promise<void> => {
-        const speed = 30;
+        const speed = 10;
 
         return new Promise(resolve => {
             // Make the width a little more visible for now
@@ -76,26 +150,32 @@ const Canvas = () => {
                 ctxRef.current.lineWidth = 3;
             }
 
-            // Draws a line segment from (x1, y1) to (x2, y2) in the canvas
-            const drawLine = (x1: number, y1: number, x2: number, y2: number): void => {
+            /**
+             * Renders a line segment on the canvas from point a to b.
+             * @param a Starting point.
+             * @param b Ending point.
+             */
+            const drawLine = (a: Vector, b: Vector): void => {
                 ctxRef.current?.beginPath();
-                ctxRef.current?.moveTo(x1, y1);
-                ctxRef.current?.lineTo(x2, y2);
+                ctxRef.current?.moveTo(a.x, a.y);
+                ctxRef.current?.lineTo(b.x, b.y);
                 ctxRef.current?.stroke();
             }
 
             // Set up parameters to iterate through line
             var t = 0;
-            var dist = Math.sqrt(Math.pow(line.x2 - line.x1, 2) + Math.pow(line.y2 - line.y1, 2));
-            var x = line.x1;
-            var y = line.y1;
-            var prevX = line.x1;
-            var prevY = line.y1;
+            var dist = Math.sqrt(Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2));
+            var x = line.start.x;
+            var y = line.start.y;
+            var prevX = line.start.x;
+            var prevY = line.start.y;
 
-            // Set up the sound generation so it happens as the line is being drawn
+            // Set up the sound generation so it happens as the line is being drawn 
             const osc = new Tone.Oscillator().toDestination();
-            osc.frequency.value = line.y1;
-            osc.start();
+            if (axisA != null && axisB != null && axisC != null) {
+                osc.frequency.value = line.start.percentOf(axisA) * 220;
+                osc.start();
+            }
 
             // Plays one step of the animation and sound tied to the line
             const lineStep = (): void => {
@@ -109,23 +189,27 @@ const Canvas = () => {
                     prevX = x;
                     prevY = y;
                     // Parametric equations for the line
-                    x = line.x1 + ((line.x2 - line.x1) / dist) * t;
-                    y = line.y1 + ((line.y2 - line.y1) / dist) * t;
+                    x = line.start.x + ((line.end.x - line.start.x) / dist) * t;
+                    y = line.start.y + ((line.end.y - line.start.y) / dist) * t;
                     
-                    // Draw the silk being spun
-                    drawLine(prevX, prevY, x, y);
-                    // Play the silk being spun
-                    osc.frequency.rampTo(y, 0);
+                    // Draw the line step being spun
+                    const prevPoint = new Vector(prevX, prevY);
+                    const newPoint = new Vector(x, y);
+
+                    drawLine(prevPoint, newPoint);
+
+                    // Play the line step being spun
+                    if (axisA != null && axisB != null && axisC != null) {
+                        osc.frequency.rampTo(220 + newPoint.percentOf(axisA) * 880, 0);
+                    }
 
                     // If the step size, as set by the speed, is too big and adding another step to the line will go over the actual distance...
                     if (t + speed < dist) {
                         t += speed;
                     } else if (t < dist) {
                         // ...then we figure out how much distance is left from the current step to actual distance, and add a substep of that exact size
-                        console.log("distance: " + dist + " time: " + t);
                         var distanceLeft = dist - t;
                         t += distanceLeft;
-                        console.log("distance: " + dist + " time: " + t);
                     } else {
                         // And finally we increment t one more time to end the loop.
                         t++;
@@ -153,13 +237,44 @@ const Canvas = () => {
     // Actual sequence for weaving the web
     const weaveWeb = async () => {
         if (canvasRef.current != null) {
-            var initY = 20;
-            var width = canvasRef.current.width;
-            var height = canvasRef.current.height;
+            const initY = 20;
+            const width = canvasRef.current.width;
+            const height = canvasRef.current.height;
 
-            // Calling await has them execute in sequence
-            await weaveLines([new Line(0, initY, width, initY)]);
-            await weaveLines([new Line(0, initY, width / 2, height / 2), new Line(width, initY, width / 2, height / 2)]);
+            const middleX = fuzz(width / 2, 0.25);
+            const middleY = fuzz(height / 2);
+
+            // INITIALIZE THE BASE THREADS AND THE THREE AXES
+            // Points that define the triangle
+            const originA = new Vector(0, initY);
+            const originB = new Vector(width, initY);
+            const originC = new Vector(middleX, height)
+            const middle = new Vector(middleX, middleY);
+            
+            // Bridge Thread
+            const bridge = new Line(new Vector(0, initY), new Vector(width, initY));
+
+            // Y Shape threads and anchor threads
+            const branchA = new Line(originA, middle);
+            const branchB = new Line(originB, middle);
+            const branchC = new Line(middle, originC);
+
+            const anchorA = new Line(originB, originC);
+            const anchorB = new Line(originA, originC);
+            
+            // Three main axes
+            axisA = new Line(originA, intersect(branchA, anchorA));
+            axisB = new Line(originB, intersect(branchB, anchorB));
+            axisC = new Line(originC, intersect(branchC, bridge));
+
+            await weaveLines([bridge]);
+            
+            await weaveLines([branchA, branchB]);
+            await weaveLines([branchC]);
+
+            // Frame Threads, finishing the triangle
+            await weaveLines([anchorA]);
+            await weaveLines([anchorB]);
         }   
     }
 
