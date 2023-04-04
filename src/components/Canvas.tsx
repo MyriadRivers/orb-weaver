@@ -84,15 +84,6 @@ const intersect = (a: Line, b: Line): Vector => {
     return new Vector(xIntersect, yIntersect);
 }
 
-// interface CanvasProps {
-//     draw(context: CanvasRenderingContext2D): void;
-//     sound(): void;
-// }
-
-// const rng = (min: number, max: number): number => {
-//     return Math.floor(Math.random() * (max - min + 1) + min);
-// }
-
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
     const ctxRef: MutableRefObject<CanvasRenderingContext2D | null> = useRef<CanvasRenderingContext2D>(null);
@@ -115,27 +106,6 @@ const Canvas = () => {
         }
     }, [])
 
-    // Render and play new lines
-    // useEffect(() => {
-    //     activeLines.forEach(line => {
-    //         draw(line);
-    //         sound(line);
-    //     }); 
-    // }, [activeLines])
-
-    // const draw = (line: Line): void => {
-    //     if (canvasRef.current != null && ctxRef.current != null) {
-    //         ctxRef.current.fillStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
-    //         ctxRef.current.fillRect(rand(0, canvasRef.current.width), rand(0, canvasRef.current.height), 
-    //         rand(0, 100), rand(0, 100));
-    //     }
-    // }
-
-    // const sound = (line: Line): void => {
-    //     const synth = new Tone.Synth().toDestination();
-    //     synth.triggerAttackRelease(rand(200, 2000), "4n");
-    // }
-
     /**
      * Spins a line of silk and sound.
      * @param line The line to be animated and played.
@@ -148,6 +118,29 @@ const Canvas = () => {
             // Make the width a little more visible for now
             if (ctxRef.current != null) {
                 ctxRef.current.lineWidth = 3;
+            }
+
+            // Set up parameters to iterate through line
+            var t = 0;
+            var dist = Math.sqrt(Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2));
+            var x = line.start.x;
+            var y = line.start.y;
+            var prevX = line.start.x;
+            var prevY = line.start.y;
+
+            // Initialize oscillators and sound parameters
+            const osc1 = new Tone.Oscillator().toDestination();
+            osc1.type = "sine";
+            const osc2 = new Tone.Oscillator().toDestination();
+            osc2.type = "sawtooth"
+
+            if (axisA != null && axisB != null && axisC != null) {
+                osc1.frequency.value = line.start.percentOf(axisA) * 220;
+                osc1.volume.value = 0;
+                osc2.frequency.value = line.start.percentOf(axisA) * 220;
+                osc2.volume.value = 0;
+                osc1.start();
+                osc2.start();
             }
 
             /**
@@ -168,26 +161,18 @@ const Canvas = () => {
              */
             const soundPoint = (p: Vector): void => {
                 if (axisA != null && axisB != null && axisC != null) {
-                    osc.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
+                    // Axis A: Pitch
+                    osc1.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
+                    osc2.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
+                    // Axis B: Timbre
+                    osc1.volume.rampTo(0, 0);
+                    // Axis C: Rhythm
                 }
             }
 
-            // Set up parameters to iterate through line
-            var t = 0;
-            var dist = Math.sqrt(Math.pow(line.end.x - line.start.x, 2) + Math.pow(line.end.y - line.start.y, 2));
-            var x = line.start.x;
-            var y = line.start.y;
-            var prevX = line.start.x;
-            var prevY = line.start.y;
-
-            // Set up the sound generation so it happens as the line is being drawn 
-            const osc = new Tone.Oscillator().toDestination();
-            if (axisA != null && axisB != null && axisC != null) {
-                osc.frequency.value = line.start.percentOf(axisA) * 220;
-                osc.start();
-            }
-
-            // Plays one step of the animation and sound tied to the line
+            /**
+             * Steps through line, rendering and generating sound for each step.
+             */
             const lineStep = (): void => {
                 // Speed is one unit of distance per time (update?)
                 if (t <= dist) {
@@ -196,16 +181,18 @@ const Canvas = () => {
                         ctxRef.current.strokeStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
                     }
 
+                    // BREAK THE LINE INTO STEPS TO CUMULATIVELY PLAY AND ANIMATE
                     prevX = x;
                     prevY = y;
                     // Parametric equations for the line
                     x = line.start.x + ((line.end.x - line.start.x) / dist) * t;
                     y = line.start.y + ((line.end.y - line.start.y) / dist) * t;
                     
-                    // Draw the line step being spun
+                    // ACTUAL PLAYING OF THE POINTS
                     const prevPoint = new Vector(prevX, prevY);
                     const newPoint = new Vector(x, y);
 
+                    // Draw the line step being spun
                     drawLine(prevPoint, newPoint);
 
                     // Play the line step being spun
@@ -226,7 +213,7 @@ const Canvas = () => {
                 } else {
                     // Stop all sound when the line is finished animating
                     // TODO: Maybe hold the pitch a little bit so it doesn't sharp cut off?
-                    osc.stop();
+                    osc1.stop();
                     resolve();
                 }
             }
@@ -285,18 +272,6 @@ const Canvas = () => {
             await weaveLines([anchorB]);
         }   
     }
-
-    // Dummy function to add to the demo button callback
-    // const addLine = () => {
-    //     spinLine(new Line(20, 220, 40, 440));
-    // }
-
-    // // Dummy function to see if renders active and passive line states are working properly
-    // const addSquare = () => {
-    //     setPassiveLines([...passiveLines, ...activeLines])
-    //     setActiveLines([new Line(rand(0, 100), rand(0, 100), rand(0, 100), rand(0, 100))]);
-    //     console.log(passiveLines.length);
-    // }
 
     return (
         <div>
