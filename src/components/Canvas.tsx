@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
-import { Vector, Line, fuzz, intersect } from "../utils";
+import { Vector, Line, fuzz } from "../utils";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -13,6 +13,9 @@ const Canvas = () => {
     var axisA: Line | null = null;
     var axisB: Line | null = null;
     var axisC: Line | null = null;
+    var anchorA: Line | null = null;
+    var anchorB: Line | null = null;
+    var bridge: Line | null = null;
 
     // Y value to start spinning the web from, so that it's not at the top of the screen
     const initY = 20;
@@ -70,26 +73,26 @@ const Canvas = () => {
             gain1.toDestination();
             gain2.toDestination();
 
-            if (axisA != null && axisB != null && axisC != null) {
+            if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
                 const startPoint = new Vector(line.start.x, line.start.y);
                 // Initialize pitch
-                osc1.frequency.value = startPoint.percentOf(axisA) * 220;
-                osc2.frequency.value = startPoint.percentOf(axisA) * 220;
+                osc1.frequency.value = startPoint.percentOf(axisA, anchorA) * 220;
+                osc2.frequency.value = startPoint.percentOf(axisA, anchorA) * 220;
                 // Initialize volume
-                gain1.gain.value = 1 - startPoint.percentOf(axisB);
-                gain2.gain.value = startPoint.percentOf(axisB);
+                gain1.gain.value = 1 - startPoint.percentOf(axisB, anchorB);
+                gain2.gain.value = startPoint.percentOf(axisB, anchorB);
                 // Initialize rhythm (tremolo)
                 console.log("Line start: " + startPoint.x + ", " + startPoint.y);
                 console.log("Line end: " + line.end.x + ", " + line.end.y);
                 console.log("Axis C start: " + axisC.start.x +", " + axisC.start.y + ", end: " + axisC.end.x + ", " + axisC.end.y);
-                console.log("Line start percent of axis C: " + (startPoint.percentOf(axisC)));
+                console.log("Line start percent of axis C: " + (startPoint.percentOf(axisC, bridge)));
                 console.log("Axis B start: " + axisB.start.x +", " + axisB.start.y + ", end: " + axisB.end.x + ", " + axisB.end.y);
-                console.log("Line end percent of axis B: " + line.end.percentOf(axisB));
-                console.log("Line end percent of axis A: " + line.end.percentOf(axisA));
+                console.log("Line end percent of axis B: " + line.end.percentOf(axisB, anchorB));
+                console.log("Line end percent of axis A: " + line.end.percentOf(axisA, anchorA));
                 console.log("\n");
                 // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
-                tremolo1.frequency.value = (startPoint.percentOf(axisC)) * 20;
-                tremolo2.frequency.value = (startPoint.percentOf(axisC)) * 20;
+                tremolo1.frequency.value = (startPoint.percentOf(axisC, bridge)) * 20;
+                tremolo2.frequency.value = (startPoint.percentOf(axisC, bridge)) * 20;
                 tremolo1.start();
                 tremolo2.start();
                 
@@ -116,16 +119,16 @@ const Canvas = () => {
             const soundPoint = (point: Vector): void => {
                 // Account for the starting Y
                 const p = new Vector(point.x, point.y);
-                if (axisA != null && axisB != null && axisC != null) {
+                if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
                     // Axis A: Pitch
-                    osc1.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
-                    osc2.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
+                    osc1.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
+                    osc2.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
                     // Axis B: Timbre
-                    gain1.gain.rampTo(1 - p.percentOf(axisB));
-                    gain2.gain.rampTo(p.percentOf(axisB));
+                    gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
+                    gain2.gain.rampTo(p.percentOf(axisB, anchorB));
                     // Axis C: Rhythm
-                    tremolo1.frequency.rampTo((p.percentOf(axisC)) * 20, 0);
-                    tremolo2.frequency.rampTo((p.percentOf(axisC)) * 20, 0);
+                    tremolo1.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
+                    tremolo2.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
                 }
             }
 
@@ -206,21 +209,21 @@ const Canvas = () => {
             const middle = new Vector(middleX, middleY);
             
             // Bridge Thread
-            const bridge = new Line(new Vector(0, initY), new Vector(width, initY));
+            bridge = new Line(new Vector(0, initY), new Vector(width, initY));
 
             // Y Shape threads and anchor threads
             const branchA = new Line(originA, middle);
             const branchB = new Line(originB, middle);
             const branchC = new Line(middle, originC);
 
-            const anchorA = new Line(originB, originC);
-            const anchorB = new Line(originA, originC);
+            anchorA = new Line(originB, originC);
+            anchorB = new Line(originA, originC);
             
             // Three main axes
-            axisA = new Line(originA, intersect(branchA, anchorA));
-            axisB = new Line(originB, intersect(branchB, anchorB));
-            console.log(intersect(branchC, bridge));
-            axisC = new Line(originC, intersect(branchC, bridge));
+            axisA = new Line(originA, branchA.intersect(anchorA));
+            axisB = new Line(originB, branchB.intersect(anchorB));
+            console.log(branchC.intersect(bridge));
+            axisC = new Line(originC, branchC.intersect(bridge));
 
             await weaveLines([bridge]);
             

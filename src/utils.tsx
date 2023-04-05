@@ -11,6 +11,32 @@ export class Vector {
     }
 
     /**
+     * Adds this Vector to another and returns the new Vector.
+     * @param u Summand vector.
+     * @returns Sum of this vector and the summand Vector.
+     */
+    plus(u: Vector): Vector {
+        return new Vector(this.x + u.x, this.y + u.y);
+    }
+
+    /**
+     * Calculates the dot product of this and another Vector.
+     * @param other Second Vector.
+     * @returns dot product scalar of the two Vectors.
+     */
+    dot = (other: Vector): number => {
+        return this.x * other.x + this.y * other.y;
+    }
+
+    /**
+     * Finds the magnitude of this Vector.
+     * @returns Magnitude of Vector u.
+     */
+    mag = (): number => {
+        return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+    }
+
+    /**
      * Converts the vector to be in the coordinate space of a different Vector.
      * @param u Vector that serves as the origin of the new coordinate space.
      * @returns Original vector converted to be in the new coordinate space.
@@ -24,10 +50,24 @@ export class Vector {
      * @param line Line to project Vector onto.
      * @returns Scale of where the Vector lies when projected onto the line, 0 is the start and 1 is the end of the line.
      */
-    percentOf(line: Line): number {
+    componentOf(line: Line): number {
         const relativePoint = this.toSpace(line.start);
         const lineVector = line.end.toSpace(line.start);
-        return dot(relativePoint, lineVector) / Math.pow(mag(lineVector), 2);
+        return relativePoint.dot(lineVector) / Math.pow(lineVector.mag(), 2);
+    }
+
+    /**
+     * Determines how far along a target line the Vector is after being projected onto that line parallel to a baseline.
+     * @param target Line to "project" on to see where the Vector lies.
+     * @param angleOfProjection Line that defines at what angle the Vector is "projected" onto the Target.
+     * @returns How far along the Target line this Vector lies, with 0 - 1 correspond to the start and end of the Target line.
+     */
+    percentOf(target: Line, angleOfProjection: Line): number {
+        // Create a new vector parallel to the baseline based off the current point
+        const measuringLine = new Line(this, this.plus(angleOfProjection.end.toSpace(angleOfProjection.start)));
+        const intersection = measuringLine.intersect(target);
+        // Intersection lies on the target so orthogonal projection will work here
+        return intersection.componentOf(target);
     }
 }
 
@@ -42,6 +82,27 @@ export class Line {
         this.start = start;
         this.end = end;
     }
+
+    /**
+     * Finds the intersection point of this Line and another Line.
+     * @param other Second Line.
+     * @returns Intersection point of the two lines.
+     */
+    intersect = (other: Line): Vector => {
+        // Use standard formulas of the two lines, ax + bx + c = 0, to solve for the intercept
+        const aA = this.end.y - this.start.y;
+        const aB = this.end.x - this.start.x;
+        const aC = this.end.x * this.start.y - this.end.y * this.start.x;
+
+        const bA = other.end.y - other.start.y;
+        const bB = other.end.x - other.start.x;
+        const bC = other.end.x * other.start.y - other.end.y * other.start.x;
+
+        const xIntersect = (aB * bC - bB * aC) / (aA * bB - aB * bA);
+        const yIntersect = - (bA * aC - aA * bC) / (bB * aA - bA * aB);
+
+        return new Vector(xIntersect, yIntersect);
+    }
 }
 
 /**
@@ -52,45 +113,4 @@ export class Line {
  */
 export const fuzz = (num: number, randomFactor: number = 0.1): number => {
     return num + num * (randomFactor * (Math.random() * 2 - 1));
-}
-
-/**
- * Calculates the dot product of two Vectors.
- * @param u First Vector.
- * @param v Second Vector.
- * @returns dot product scalar of the two Vector.
- */
-export const dot = (u: Vector, v: Vector): number => {
-    return u.x * v.x + u.y * v.y;
-}
-
-/**
- * Finds the magnitude of a vector.
- * @param u Vector to find magnitude of.
- * @returns Magnitude of vector u.
- */
-export const mag = (u: Vector): number => {
-    return Math.sqrt(Math.pow(u.x, 2) + Math.pow(u.y, 2));
-}
-
-/**
- * Finds the intersection point of two Lines.
- * @param a First Line.
- * @param b Second Line.
- * @returns Intersection point of the two lines.
- */
-export const intersect = (a: Line, b: Line): Vector => {
-    // Use standard formulas of the two lines, ax + bx + c = 0, to solve for the intercept
-    const aA = a.end.y - a.start.y;
-    const aB = a.end.x - a.start.x;
-    const aC = a.end.x * a.start.y - a.end.y * a.start.x;
-
-    const bA = b.end.y - b.start.y;
-    const bB = b.end.x - b.start.x;
-    const bC = b.end.x * b.start.y - b.end.y * b.start.x;
-
-    const xIntersect = (aB * bC - bB * aC) / (aA * bB - aB * bA);
-    const yIntersect = - (bA * aC - aA * bC) / (bB * aA - bA * aB);
-
-    return new Vector(xIntersect, yIntersect);
 }
