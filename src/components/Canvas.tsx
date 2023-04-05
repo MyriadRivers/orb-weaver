@@ -1,88 +1,6 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
-
-class Vector {
-    x: number;
-    y: number;
-
-    constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
-    }
-
-    /**
-     * Projects the Vector onto a Line and finds its component in the direction of the Line as a scale value of the Line.
-     * @param line Line to project Vector onto.
-     * @returns Scale of where the Vector lies when projected onto the line, 0 is the start and 1 is the end of the line.
-     */
-    percentOf(line: Line): number {
-        const lineX = line.end.x - line.start.x;
-        const lineY = line.end.y - line.start.y;
-        const lineVector = new Vector(lineX, lineY);
-        return dot(this, lineVector) / Math.pow(mag(lineVector), 2);
-    }
-}
-
-class Line {
-    start: Vector;
-    end: Vector;
-
-    constructor(start: Vector, end: Vector) {
-        this.start = start;
-        this.end = end;
-    }
-}
-
-/**
- * Scales a number up to the randomFactor.
- * @param num Number to add some randomness to.
- * @param randomFactor Maximum percent that number can be scaled up or down.
- * @returns Fuzzed number.
- */
-const fuzz = (num: number, randomFactor: number = 0.1): number => {
-    return num + num * (randomFactor * (Math.random() * 2 - 1));
-}
-
-/**
- * Calculates the dot product of two Vectors.
- * @param u First Vector.
- * @param v Second Vector.
- * @returns dot product scalar of the two Vector.
- */
-const dot = (u: Vector, v: Vector): number => {
-    return u.x * v.x + u.y * v.y;
-}
-
-/**
- * Finds the magnitude of a vector.
- * @param u Vector to find magnitude of.
- * @returns Magnitude of vector u.
- */
-const mag = (u: Vector): number => {
-    return Math.sqrt(Math.pow(u.x, 2) + Math.pow(u.y, 2));
-}
-
-/**
- * Finds the intersection point of two Lines.
- * @param a First Line.
- * @param b Second Line.
- * @returns Intersection point of the two lines.
- */
-const intersect = (a: Line, b: Line): Vector => {
-    // Use standard formulas of the two lines, ax + bx + c = 0, to solve for the intercept
-    const aA = a.end.y - a.start.y;
-    const aB = a.end.x - a.start.x;
-    const aC = a.end.x * a.start.y - a.end.y * a.start.x;
-
-    const bA = b.end.y - b.start.y;
-    const bB = b.end.x - b.start.x;
-    const bC = b.end.x * b.start.y - b.end.y * b.start.x;
-
-    const xIntersect = (aB * bC - bB * aC) / (aA * bB - aB * bA);
-    const yIntersect = - (bA * aC - aA * bC) / (bB * aA - bA * aB);
-
-    return new Vector(xIntersect, yIntersect);
-}
+import { Vector, Line, fuzz, intersect } from "../utils";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -103,8 +21,8 @@ const Canvas = () => {
     useEffect(() => {
         const canvas: HTMLCanvasElement | null = canvasRef.current;
         if (canvas != null) {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            canvas.width = window.innerWidth - 50;
+            canvas.height = window.innerHeight - 50;
             ctxRef.current = canvas.getContext('2d');
         }
     }, [])
@@ -153,7 +71,7 @@ const Canvas = () => {
             gain2.toDestination();
 
             if (axisA != null && axisB != null && axisC != null) {
-                const startPoint = new Vector(line.start.x, line.start.y - initY);
+                const startPoint = new Vector(line.start.x, line.start.y);
                 // Initialize pitch
                 osc1.frequency.value = startPoint.percentOf(axisA) * 220;
                 osc2.frequency.value = startPoint.percentOf(axisA) * 220;
@@ -162,11 +80,16 @@ const Canvas = () => {
                 gain2.gain.value = startPoint.percentOf(axisB);
                 // Initialize rhythm (tremolo)
                 console.log("Line start: " + startPoint.x + ", " + startPoint.y);
+                console.log("Line end: " + line.end.x + ", " + line.end.y);
                 console.log("Axis C start: " + axisC.start.x +", " + axisC.start.y + ", end: " + axisC.end.x + ", " + axisC.end.y);
-                console.log("Line percent of axis C: " + (1 + startPoint.percentOf(axisC)));
+                console.log("Line start percent of axis C: " + (startPoint.percentOf(axisC)));
+                console.log("Axis B start: " + axisB.start.x +", " + axisB.start.y + ", end: " + axisB.end.x + ", " + axisB.end.y);
+                console.log("Line end percent of axis B: " + line.end.percentOf(axisB));
+                console.log("Line end percent of axis A: " + line.end.percentOf(axisA));
+                console.log("\n");
                 // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
-                tremolo1.frequency.value = (1 + startPoint.percentOf(axisC)) * 20;
-                tremolo2.frequency.value = (1 + startPoint.percentOf(axisC)) * 20;
+                tremolo1.frequency.value = (startPoint.percentOf(axisC)) * 20;
+                tremolo2.frequency.value = (startPoint.percentOf(axisC)) * 20;
                 tremolo1.start();
                 tremolo2.start();
                 
@@ -192,7 +115,7 @@ const Canvas = () => {
              */
             const soundPoint = (point: Vector): void => {
                 // Account for the starting Y
-                const p = new Vector(point.x, point.y - initY);
+                const p = new Vector(point.x, point.y);
                 if (axisA != null && axisB != null && axisC != null) {
                     // Axis A: Pitch
                     osc1.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
@@ -201,8 +124,8 @@ const Canvas = () => {
                     gain1.gain.rampTo(1 - p.percentOf(axisB));
                     gain2.gain.rampTo(p.percentOf(axisB));
                     // Axis C: Rhythm
-                    tremolo1.frequency.rampTo((1 + p.percentOf(axisC)) * 20, 0);
-                    tremolo2.frequency.rampTo((1 + p.percentOf(axisC)) * 20, 0);
+                    tremolo1.frequency.rampTo((p.percentOf(axisC)) * 20, 0);
+                    tremolo2.frequency.rampTo((p.percentOf(axisC)) * 20, 0);
                 }
             }
 
@@ -272,7 +195,7 @@ const Canvas = () => {
             const width = canvasRef.current.width;
             const height = canvasRef.current.height;
 
-            const middleX = fuzz(width / 2, 0.25);
+            const middleX = fuzz(width / 2);
             const middleY = fuzz(height / 2);
 
             // INITIALIZE THE BASE THREADS AND THE THREE AXES
@@ -296,6 +219,7 @@ const Canvas = () => {
             // Three main axes
             axisA = new Line(originA, intersect(branchA, anchorA));
             axisB = new Line(originB, intersect(branchB, anchorB));
+            console.log(intersect(branchC, bridge));
             axisC = new Line(originC, intersect(branchC, bridge));
 
             await weaveLines([bridge]);
