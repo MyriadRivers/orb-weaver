@@ -96,6 +96,9 @@ const Canvas = () => {
     var axisB: Line | null = null;
     var axisC: Line | null = null;
 
+    // Y value to start spinning the web from, so that it's not at the top of the screen
+    const initY = 20;
+
     // Initialize Canvas and Context
     useEffect(() => {
         const canvas: HTMLCanvasElement | null = canvasRef.current;
@@ -129,24 +132,46 @@ const Canvas = () => {
             var prevY = line.start.y;
 
             // Initialize oscillators and sound parameters
-            const osc1 = new Tone.Oscillator().toDestination();
-            const osc2 = new Tone.Oscillator().toDestination();
+            const osc1 = new Tone.Oscillator();
+            const osc2 = new Tone.Oscillator();
 
             osc1.type = "sine";
             osc2.type = "sawtooth";
 
-            const gain1 = new Tone.Gain(0).toDestination();
-            const gain2 = new Tone.Gain(0).toDestination();
+            const gain1 = new Tone.Gain(0);
+            const gain2 = new Tone.Gain(0);
 
-            osc1.connect(gain1);
-            osc2.connect(gain2);
+            const tremolo1 = new Tone.Tremolo(0, 1.0);
+            const tremolo2 = new Tone.Tremolo(0, 1.0);
+
+            // Set up pipeline of effects
+            osc1.connect(tremolo1);
+            osc2.connect(tremolo2);
+            tremolo1.connect(gain1);
+            tremolo2.connect(gain2);
+            gain1.toDestination();
+            gain2.toDestination();
 
             if (axisA != null && axisB != null && axisC != null) {
+                const startPoint = new Vector(line.start.x, line.start.y - initY);
                 // Initialize pitch
-                osc1.frequency.value = line.start.percentOf(axisA) * 220;
-                osc2.frequency.value = line.start.percentOf(axisA) * 220;
+                osc1.frequency.value = startPoint.percentOf(axisA) * 220;
+                osc2.frequency.value = startPoint.percentOf(axisA) * 220;
                 // Initialize volume
+                gain1.gain.value = 1 - startPoint.percentOf(axisB);
+                gain2.gain.value = startPoint.percentOf(axisB);
+                // Initialize rhythm (tremolo)
+                console.log("Line start: " + startPoint.x + ", " + startPoint.y);
+                console.log("Axis C start: " + axisC.start.x +", " + axisC.start.y + ", end: " + axisC.end.x + ", " + axisC.end.y);
+                console.log("Line percent of axis C: " + (1 + startPoint.percentOf(axisC)));
+                // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
+                tremolo1.frequency.value = (1 + startPoint.percentOf(axisC)) * 20;
+                tremolo2.frequency.value = (1 + startPoint.percentOf(axisC)) * 20;
+                tremolo1.start();
+                tremolo2.start();
+                
                 osc1.start();
+                osc2.start();
             }
 
             /**
@@ -165,14 +190,19 @@ const Canvas = () => {
              * Sonifies a point p.
              * @param p Point to sonify.
              */
-            const soundPoint = (p: Vector): void => {
+            const soundPoint = (point: Vector): void => {
+                // Account for the starting Y
+                const p = new Vector(point.x, point.y - initY);
                 if (axisA != null && axisB != null && axisC != null) {
                     // Axis A: Pitch
                     osc1.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
                     osc2.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
                     // Axis B: Timbre
-                    // osc1.volume.rampTo(0, 0);
+                    gain1.gain.rampTo(1 - p.percentOf(axisB));
+                    gain2.gain.rampTo(p.percentOf(axisB));
                     // Axis C: Rhythm
+                    tremolo1.frequency.rampTo((1 + p.percentOf(axisC)) * 20, 0);
+                    tremolo2.frequency.rampTo((1 + p.percentOf(axisC)) * 20, 0);
                 }
             }
 
@@ -220,6 +250,7 @@ const Canvas = () => {
                     // Stop all sound when the line is finished animating
                     // TODO: Maybe hold the pitch a little bit so it doesn't sharp cut off?
                     osc1.stop();
+                    osc2.stop();
                     resolve();
                 }
             }
@@ -238,7 +269,6 @@ const Canvas = () => {
     // Actual sequence for weaving the web
     const weaveWeb = async () => {
         if (canvasRef.current != null) {
-            const initY = 20;
             const width = canvasRef.current.width;
             const height = canvasRef.current.height;
 
