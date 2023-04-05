@@ -130,17 +130,23 @@ const Canvas = () => {
 
             // Initialize oscillators and sound parameters
             const osc1 = new Tone.Oscillator().toDestination();
-            osc1.type = "sine";
             const osc2 = new Tone.Oscillator().toDestination();
-            osc2.type = "sawtooth"
+
+            osc1.type = "sine";
+            osc2.type = "sawtooth";
+
+            const gain1 = new Tone.Gain(0).toDestination();
+            const gain2 = new Tone.Gain(0).toDestination();
+
+            osc1.connect(gain1);
+            osc2.connect(gain2);
 
             if (axisA != null && axisB != null && axisC != null) {
+                // Initialize pitch
                 osc1.frequency.value = line.start.percentOf(axisA) * 220;
-                osc1.volume.value = 0;
                 osc2.frequency.value = line.start.percentOf(axisA) * 220;
-                osc2.volume.value = 0;
+                // Initialize volume
                 osc1.start();
-                osc2.start();
             }
 
             /**
@@ -165,7 +171,7 @@ const Canvas = () => {
                     osc1.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
                     osc2.frequency.rampTo(220 + p.percentOf(axisA) * 220, 0);
                     // Axis B: Timbre
-                    osc1.volume.rampTo(0, 0);
+                    // osc1.volume.rampTo(0, 0);
                     // Axis C: Rhythm
                 }
             }
