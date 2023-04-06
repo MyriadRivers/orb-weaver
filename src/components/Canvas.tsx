@@ -206,9 +206,6 @@ const Canvas = () => {
             const originA = new Vector(0, fuzz(initY, 1));
             const originB = new Vector(width, fuzz(initY, 1));
             const originC = new Vector(fuzz(width / 2), height)
-            const originA = new Vector(0, fuzz(initY, 1));
-            const originB = new Vector(width, fuzz(initY, 1));
-            const originC = new Vector(fuzz(width / 2), height)
             const middle = new Vector(middleX, middleY);
             
             // Bridge thread
