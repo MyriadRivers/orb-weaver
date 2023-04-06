@@ -18,7 +18,7 @@ const Canvas = () => {
     var bridge: Line | null = null;
 
     // Y value to start spinning the web from, so that it's not at the top of the screen
-    const initY = 20;
+    const initY = 30;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -203,6 +203,9 @@ const Canvas = () => {
 
             // INITIALIZE THE BASE THREADS AND THE THREE AXES
             // Points that define the triangle
+            const originA = new Vector(0, fuzz(initY, 1));
+            const originB = new Vector(width, fuzz(initY, 1));
+            const originC = new Vector(fuzz(width / 2), height)
             const originA = new Vector(0, fuzz(initY, 1));
             const originB = new Vector(width, fuzz(initY, 1));
             const originC = new Vector(fuzz(width / 2), height)
