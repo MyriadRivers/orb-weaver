@@ -203,13 +203,13 @@ const Canvas = () => {
 
             // INITIALIZE THE BASE THREADS AND THE THREE AXES
             // Points that define the triangle
-            const originA = new Vector(0, initY);
-            const originB = new Vector(width, initY);
-            const originC = new Vector(middleX, height)
+            const originA = new Vector(0, fuzz(initY, 1));
+            const originB = new Vector(width, fuzz(initY, 1));
+            const originC = new Vector(fuzz(width / 2), height)
             const middle = new Vector(middleX, middleY);
             
-            // Bridge Thread
-            bridge = new Line(new Vector(0, initY), new Vector(width, initY));
+            // Bridge thread
+            bridge = new Line(originA, originB);
 
             // Y Shape threads and anchor threads
             const branchA = new Line(originA, middle);
@@ -225,14 +225,30 @@ const Canvas = () => {
             console.log(branchC.intersect(bridge));
             axisC = new Line(originC, branchC.intersect(bridge));
 
+            // Frame threads
+            const framePos = 0.2;
+            const frameFuzz = 0.1;
+            const frameA = Math.random() < 0.5 ? 
+                            new Line(bridge.pointAt(fuzz(framePos, frameFuzz)), anchorB.pointAt(fuzz(framePos, frameFuzz))) 
+                            : new Line(anchorB.pointAt(fuzz(framePos, frameFuzz)), bridge.pointAt(fuzz(framePos, frameFuzz)));
+            const frameB = Math.random() < 0.5 ? 
+                            new Line(bridge.pointAt(fuzz(1 - framePos, frameFuzz)), anchorA.pointAt(fuzz(framePos, frameFuzz))) 
+                            : new Line(anchorA.pointAt(fuzz(framePos, frameFuzz)), bridge.pointAt(fuzz(1 - framePos, frameFuzz)));
+            const frameC = Math.random() < 0.5 ? 
+                            new Line(anchorB.pointAt(fuzz(1 - framePos, frameFuzz)), anchorA.pointAt(fuzz(1 - framePos, frameFuzz))) 
+                            : new Line(anchorA.pointAt(fuzz(1 - framePos, frameFuzz)), anchorB.pointAt(fuzz(1 - framePos, frameFuzz)));
+
             await weaveLines([bridge]);
             
             await weaveLines([branchA, branchB]);
             await weaveLines([branchC]);
 
-            // Frame Threads, finishing the triangle
             await weaveLines([anchorA]);
             await weaveLines([anchorB]);
+
+            await weaveLines([frameA]);
+            await weaveLines([frameB]);
+            await weaveLines([frameC]);
         }   
     }
 

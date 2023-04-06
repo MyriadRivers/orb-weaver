@@ -20,11 +20,20 @@ export class Vector {
     }
 
     /**
+     * Scales this Vector by a constant value.
+     * @param scalar Scalar to multiply with vector.
+     * @returns Scaled vector.
+     */
+    scale(scalar: number): Vector {
+        return new Vector(this.x * scalar, this.y * scalar);
+    }
+
+    /**
      * Calculates the dot product of this and another Vector.
      * @param other Second Vector.
      * @returns dot product scalar of the two Vectors.
      */
-    dot = (other: Vector): number => {
+    dot(other: Vector): number {
         return this.x * other.x + this.y * other.y;
     }
 
@@ -32,7 +41,7 @@ export class Vector {
      * Finds the magnitude of this Vector.
      * @returns Magnitude of Vector u.
      */
-    mag = (): number => {
+    mag(): number {
         return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
     }
 
@@ -62,12 +71,12 @@ export class Vector {
      * @param angleOfProjection Line that defines at what angle the Vector is "projected" onto the Target.
      * @returns How far along the Target line this Vector lies, with 0 - 1 correspond to the start and end of the Target line.
      */
-    percentOf(target: Line, angleOfProjection: Line): number {
+    percentOf(target: Line, angleOfProjection: Line, round: boolean = true): number {
         // Create a new vector parallel to the baseline based off the current point
         const measuringLine = new Line(this, this.plus(angleOfProjection.end.toSpace(angleOfProjection.start)));
         const intersection = measuringLine.intersect(target);
         // Intersection lies on the target so orthogonal projection will work here
-        return intersection.componentOf(target);
+        return Math.round(intersection.componentOf(target) * 10000) / 10000;
     }
 }
 
@@ -88,7 +97,7 @@ export class Line {
      * @param other Second Line.
      * @returns Intersection point of the two lines.
      */
-    intersect = (other: Line): Vector => {
+    intersect(other: Line): Vector {
         // Use standard formulas of the two lines, ax + bx + c = 0, to solve for the intercept
         const aA = this.end.y - this.start.y;
         const aB = this.end.x - this.start.x;
@@ -102,6 +111,14 @@ export class Line {
         const yIntersect = - (bA * aC - aA * bC) / (bB * aA - bA * aB);
 
         return new Vector(xIntersect, yIntersect);
+    }
+
+    /**
+     * Returns the Vector found along the line at the given position. 
+     * @param position Position along line, with 0 being the start and 1 being the end of the line.
+     */
+    pointAt(position: number): Vector {
+        return this.start.plus(this.end.toSpace(this.start).scale(position));
     }
 }
 
