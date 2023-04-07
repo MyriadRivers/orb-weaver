@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
-import { Vector, Line, fuzz } from "../utils";
+import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle } from "../utils";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -17,8 +17,16 @@ const Canvas = () => {
     var anchorB: Line | null = null;
     var bridge: Line | null = null;
 
+    // CHANGE FOLLOWING PARAMETERS TO AFFECT HOW THE WEB GENERATION LOOKS
+
     // Y value to start spinning the web from, so that it's not at the top of the screen
     const initY = 30;
+
+    // Maximum gap in degrees between two radii
+    const maxRadiusAngle = 30;
+    
+    // Determines how close thread can be generated to another, larger values mean more spaced out
+    const minRadiusAngleFactor = 0.25;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -82,14 +90,6 @@ const Canvas = () => {
                 gain1.gain.value = 1 - startPoint.percentOf(axisB, anchorB);
                 gain2.gain.value = startPoint.percentOf(axisB, anchorB);
                 // Initialize rhythm (tremolo)
-                console.log("Line start: " + startPoint.x + ", " + startPoint.y);
-                console.log("Line end: " + line.end.x + ", " + line.end.y);
-                console.log("Axis C start: " + axisC.start.x +", " + axisC.start.y + ", end: " + axisC.end.x + ", " + axisC.end.y);
-                console.log("Line start percent of axis C: " + (startPoint.percentOf(axisC, bridge)));
-                console.log("Axis B start: " + axisB.start.x +", " + axisB.start.y + ", end: " + axisB.end.x + ", " + axisB.end.y);
-                console.log("Line end percent of axis B: " + line.end.percentOf(axisB, anchorB));
-                console.log("Line end percent of axis A: " + line.end.percentOf(axisA, anchorA));
-                console.log("\n");
                 // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
                 tremolo1.frequency.value = (startPoint.percentOf(axisC, bridge)) * 20;
                 tremolo2.frequency.value = (startPoint.percentOf(axisC, bridge)) * 20;
@@ -201,7 +201,8 @@ const Canvas = () => {
             const middleX = fuzz(width / 2);
             const middleY = fuzz(height / 2);
 
-            // INITIALIZE THE BASE THREADS AND THE THREE AXES
+            // GENERATE ALL THREADS AND POINTS BEFORE RENDERING
+
             // Points that define the triangle
             const originA = new Vector(0, fuzz(initY, 1));
             const originB = new Vector(width, fuzz(initY, 1));
@@ -222,7 +223,6 @@ const Canvas = () => {
             // Three main axes
             axisA = new Line(originA, branchA.intersect(anchorA));
             axisB = new Line(originB, branchB.intersect(anchorB));
-            console.log(branchC.intersect(bridge));
             axisC = new Line(originC, branchC.intersect(bridge));
 
             // Frame threads
@@ -238,6 +238,100 @@ const Canvas = () => {
                             new Line(anchorB.pointAt(fuzz(1 - framePos, frameFuzz)), anchorA.pointAt(fuzz(1 - framePos, frameFuzz))) 
                             : new Line(anchorA.pointAt(fuzz(1 - framePos, frameFuzz)), anchorB.pointAt(fuzz(1 - framePos, frameFuzz)));
 
+            // Array containing the outmost border threads where radius threads will stop
+            const borderThreads = [bridge, anchorA, anchorB, frameA, frameB, frameC];
+
+            /**
+             * Comparison function to sort radii by their angles.
+             * @param r1 First radius.
+             * @param r2 Second radius.
+             * @returns Comparison value.
+             */
+            const sortByAngle = (r1: Radius, r2: Radius): number => {
+                return Math.sign(r1.angle - r2.angle);
+                 
+            }
+
+            var radii = new Array<Radius>();
+            // Spokes are the radii but also include the branches
+            var spokes = radii.concat([new Radius(middle, originA, originA.getAngle(middle)), 
+                                       new Radius(middle, originB, originB.getAngle(middle)), 
+                                       new Radius(middle, originC, originC.getAngle(middle))]);
+
+            // ADD SPOKES RANDOMLY UNTIL THERE IS NO SPACE LEFT, DEPENDING ON GAP SIZE
+            spokes.sort(sortByAngle);
+            var hasSpace = true;
+            var i = 0;
+            const startingRadius = spokes[0];
+
+            while (hasSpace) {
+                const currRadius = spokes[i % spokes.length];
+                const nextRadius = spokes[(i + 1) % spokes.length];
+
+                // Checks against next radius in list in a circular fashion, when sorted ascending
+                if  (currRadius && nextRadius) {
+
+                    const angleDifference = (nextRadius.end.getAngle(middle) - currRadius.end.getAngle(middle) + 360) % 360;
+
+                    // If there's still enough space in between two adjacent radii, we add a new one
+                    if (angleDifference > maxRadiusAngle) {
+
+                        // Keep generating a new random angle until it's not too close to either bordering radius
+                        var newAngle = rand(currRadius.angle, currRadius.angle + angleDifference);
+                        var angleCurrNew = (newAngle - currRadius.end.getAngle(middle) + 360) % 360;
+                        var angleNextCurr = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360;
+
+                        while (angleCurrNew < angleDifference * minRadiusAngleFactor || angleNextCurr < angleDifference * minRadiusAngleFactor) {
+                            newAngle = rand(currRadius.angle, currRadius.angle + angleDifference);
+                            angleCurrNew = (newAngle - currRadius.end.getAngle(middle) + 360) % 360;
+                            angleNextCurr = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360;
+                        }
+
+                        const unitRadiusLine = new Line(middle, new Vector(Math.cos(degToRad(newAngle)), Math.sin(degToRad(newAngle))).plus(middle));
+
+                        // Find the border thread that the new radius will first intersect
+                        var border = borderThreads[0];
+                        var minDist = unitRadiusLine.intersect(border).toSpace(middle).mag();
+                        
+                        for (let j = 0; j < borderThreads.length; j++) {
+                            const intersectPoint = unitRadiusLine.intersect(borderThreads[j]);
+
+                            const nextDist = intersectPoint.toSpace(middle).mag();
+                            const relInter = intersectPoint.toSpace(middle);
+                            const relUnitEnd = unitRadiusLine.end.toSpace(middle);
+
+                            if (Math.sign(relInter.x) === Math.sign(relUnitEnd.x) && Math.sign(relInter.y) === Math.sign(relUnitEnd.y) && nextDist < minDist) {
+                                minDist = nextDist;
+                                border = borderThreads[j];
+                            }
+                        }
+
+                        const newRadius = new Radius(middle, unitRadiusLine.intersect(border), newAngle);
+                        // Adds a new radius after the current radius
+                        spokes.splice((i + 1) % spokes.length, 0, newRadius);
+                        radii.push(newRadius);
+
+                    } else {
+                        // Terminate adding radii if we have looped around back to the start and there is no space from the last radii to the starting radii
+                        if (nextRadius === startingRadius) {
+                            hasSpace = false;
+                        }
+                        // Only move on to the next gap if the space between the current radius and the next one is below the max gap size
+                        i++;
+                    }
+                }
+            }
+            
+            // Randomize the order that we draw the radii in
+            shuffle(radii);
+            
+            // ACTUAL RENDERING OF ALL THE THREADS 
+
+            // Renders all the radii at once
+            // radii.forEach(async radius => {
+            //     await weaveLines([radius]);
+            // });
+
             await weaveLines([bridge]);
             
             await weaveLines([branchA, branchB]);
@@ -249,6 +343,10 @@ const Canvas = () => {
             await weaveLines([frameA]);
             await weaveLines([frameB]);
             await weaveLines([frameC]);
+
+            for (let i = 0; i < radii.length; i++) {
+                await weaveLines([radii[i]]);
+            }
         }   
     }
 

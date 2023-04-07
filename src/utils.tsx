@@ -78,6 +78,26 @@ export class Vector {
         // Intersection lies on the target so orthogonal projection will work here
         return Math.round(intersection.componentOf(target) * 10000) / 10000;
     }
+
+    /**
+     * Gets the absolute angle of a Vector around an origin point. Default is in degrees.
+     * @param origin The origin to get the angle around.
+     * @param inDegrees Whether to return the angle in degrees or not (radians). Default is true.
+     * @returns Angle, in degrees unless specified in radians.
+     */
+    getAngle(origin: Vector, inDegrees: boolean = true): number {
+        const transVec = this.toSpace(origin);
+        const baseAngle = radToDeg(Math.atan(transVec.y / transVec.x));
+        var angle: number;
+        if (transVec.x < 0) {
+            angle = baseAngle + 180;
+        } else if (transVec.y < 0) {
+            angle = baseAngle + 360;
+        } else {
+            angle = baseAngle;
+        }
+        return inDegrees ? angle : degToRad(angle);
+    }
 }
 
 /**
@@ -122,6 +142,15 @@ export class Line {
     }
 }
 
+export class Radius extends Line {
+    angle: number;
+
+    constructor(start: Vector, end: Vector, angle: number) {
+        super(start, end);
+        this.angle = angle;
+    }
+}
+
 /**
  * Scales a number up to the randomFactor.
  * @param num Number to add some randomness to.
@@ -130,4 +159,54 @@ export class Line {
  */
 export const fuzz = (num: number, randomFactor: number = 0.1): number => {
     return num + num * (randomFactor * (Math.random() * 2 - 1));
+}
+
+/**
+ * Returns a random number in between an inclusive min and exclusive max. 
+ * @param min Min number (inclusive).
+ * @param max Max number (exclusive).
+ * @returns Random floating point number in between min and max.
+ */
+export const rand = (min: number, max: number): number => {
+    return Math.random() * (max - min) + min
+}
+
+/**
+ * Shuffles an array by randomizing the order of its contents.
+ * @param array Array to shuffle.
+ * @returns Array with order of contents randomized.
+ */
+export const shuffle = (array: Array<any>): Array<any> => {
+    let currentIndex = array.length,  randomIndex;
+  
+    // While there remain elements to shuffle.
+    while (currentIndex !== 0) {
+  
+      // Pick a remaining element.
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+  
+      // And swap it with the current element.
+      [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+    }
+  
+    return array;
+}
+
+/**
+ * Converts an angle from radians to degrees. 
+ * @param angle Angle to convert.
+ * @returns Angle converted to degrees.
+ */
+export const radToDeg = (angle: number): number => {
+    return angle * (180 / Math.PI);
+}
+
+/**
+ * Converts an angle from degrees to radians.
+ * @param angle Angle to convert.
+ * @returns Angle converted to radians.
+ */
+export const degToRad = (angle: number): number => {
+    return angle * (Math.PI / 180);
 }
