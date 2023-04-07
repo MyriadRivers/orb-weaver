@@ -20,7 +20,7 @@ const Canvas = () => {
     // CHANGE FOLLOWING PARAMETERS TO AFFECT HOW THE WEB GENERATION LOOKS
 
     // Y value to start spinning the web from, so that it's not at the top of the screen
-    const initY = 30;
+    const initY = (window.innerHeight - 50) / 30;
 
     // Maximum gap in degrees between two radii
     const maxRadiusAngle = 30;
@@ -28,12 +28,16 @@ const Canvas = () => {
     // Determines how close thread can be generated to another, larger values mean more spaced out
     const minRadiusAngleFactor = 0.25;
 
+    // Determines how fast threads are spun
+    const speed = 10;
+
     // Initialize Canvas and Context
     useEffect(() => {
         const canvas: HTMLCanvasElement | null = canvasRef.current;
         if (canvas != null) {
             canvas.width = window.innerWidth - 50;
             canvas.height = window.innerHeight - 50;
+            console.log(canvas.width + " " + canvas.height)
             ctxRef.current = canvas.getContext('2d');
         }
     }, [])
@@ -44,12 +48,10 @@ const Canvas = () => {
      * @returns Promise is resolved when the line is finished spinning.
      */
     const spinLine = (line: Line): Promise<void> => {
-        const speed = 10;
-
         return new Promise(resolve => {
             // Make the width a little more visible for now
             if (ctxRef.current != null) {
-                ctxRef.current.lineWidth = 3;
+                ctxRef.current.lineWidth = 1;
             }
 
             // Set up parameters to iterate through line
@@ -321,7 +323,7 @@ const Canvas = () => {
                     }
                 }
             }
-            
+
             // Randomize the order that we draw the radii in
             shuffle(radii);
             
@@ -345,7 +347,9 @@ const Canvas = () => {
             await weaveLines([frameC]);
 
             for (let i = 0; i < radii.length; i++) {
-                await weaveLines([radii[i]]);
+                // Randomize direction of radius threads
+                const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
+                await weaveLines([randRadius]);
             }
         }   
     }
