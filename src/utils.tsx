@@ -162,13 +162,25 @@ export const fuzz = (num: number, randomFactor: number = 0.1): number => {
 }
 
 /**
- * Returns a random number in between an inclusive min and exclusive max. 
+ * Returns a random floating point number in between an inclusive min and exclusive max. 
  * @param min Min number (inclusive).
  * @param max Max number (exclusive).
  * @returns Random floating point number in between min and max.
  */
 export const rand = (min: number, max: number): number => {
     return Math.random() * (max - min) + min
+}
+
+/**
+ * Returns a random integer between an inclusive min and an exclusive max.
+ * @param min Minimum bound (inclusive).
+ * @param max Maximum bound (exclusive).
+ * @returns Random integer between the min and max.
+ */
+export const randInt = (min: number, max: number): number => {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min) + min);
 }
 
 /**

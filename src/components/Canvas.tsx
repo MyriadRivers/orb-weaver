@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
-import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle } from "../utils";
+import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt } from "../utils";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -27,6 +27,9 @@ const Canvas = () => {
     
     // Determines how close thread can be generated to another, larger values mean more spaced out
     const minRadiusAngleFactor = 0.25;
+
+    // Determines the number of rings in the auxiliary spiral
+    const auxRings = 5;
 
     // Determines how fast threads are spun
     const speed = 10;
@@ -323,6 +326,16 @@ const Canvas = () => {
                     }
                 }
             }
+
+            // GENERATE THE AUXILIARY SPIRAL
+            spokes.sort(sortByAngle);
+            const startSpokeIndex = randInt(0, spokes.length);
+            const clockwiseAux = Math.random() < 0.5 ? true : false;
+            var auxSpiralPoint = 1 / auxRings;
+
+            // GENERATE AUXILIARY SPIRAL
+
+            // GENERATE CAPTURE SPIRAL
 
             // Randomize the order that we draw the radii in
             shuffle(radii);
