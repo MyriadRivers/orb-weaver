@@ -366,6 +366,10 @@ const Canvas = () => {
                 // Circularly iterates through array regardless of positive or negative indices
                 auxI = ((auxIndex % spokes.length) + spokes.length) % spokes.length;
                 // TODO: fuzz point on spiral
+
+                // If spiral point goes over, set it to the length
+                if (pointOnSpiral > spokes[auxI].length) pointOnSpiral = spokes[auxI].length;
+
                 const nextPoint = spokes[auxI].pointAtAbs(pointOnSpiral);
                 spokes[auxI].auxPoints.push(nextPoint);
 
