@@ -370,12 +370,14 @@ const Canvas = () => {
 
                 // Circularly iterates through array regardless of positive or negative indices
                 auxI = ((auxIndex % spokes.length) + spokes.length) % spokes.length;
-                // TODO: fuzz point on spiral
+
+                var fuzzedPoint = fuzz(pointOnSpiral, 0.05);
 
                 // If spiral point goes over, set it to the length
-                if (pointOnSpiral > spokes[auxI].length) pointOnSpiral = spokes[auxI].length;
+                // TODO: HANDLE EDGE CASE OF LIMITING FUZZED POINT TO UNDER LENGTH OF Y LINES, WHICH GO PAST FRAMES, AS WELL
+                if (fuzzedPoint > spokes[auxI].length) fuzzedPoint = spokes[auxI].length;
 
-                const nextPoint = spokes[auxI].pointAtAbs(pointOnSpiral);
+                const nextPoint = spokes[auxI].pointAtAbs(fuzzedPoint);
                 spokes[auxI].auxPoints.push(nextPoint);
 
                 const auxLine = new Line(prevPoint, nextPoint);
@@ -413,6 +415,10 @@ const Canvas = () => {
             //     // Randomize direction of radius threads
             //     const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
             //     await weaveLines([randRadius]);
+            // }
+
+            // for (let i = 0; i < auxiliarySpiral.length; i++) {
+            //     await weaveLines([auxiliarySpiral[i]]);
             // }
         }   
     }
