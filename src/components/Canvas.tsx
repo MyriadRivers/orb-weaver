@@ -32,7 +32,7 @@ const Canvas = () => {
     const auxRings = 5;
 
     // Determines how fast threads are spun
-    const speed = 10;
+    const speed = 5;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -292,42 +292,47 @@ const Canvas = () => {
                 // Checks against next radius in list in a circular fashion, when sorted ascending
                 if  (currRadius && nextRadius) {
 
-                    const angleDifference = (nextRadius.end.getAngle(middle) - currRadius.end.getAngle(middle) + 360) % 360;
+                    const angleDifference = (nextRadius.angle - currRadius.angle + 360) % 360;
 
                     // If there's still enough space in between two adjacent radii, we add a new one
                     if (angleDifference > maxRadiusAngle) {
 
                         // Keep generating a new random angle until it's not too close to either bordering radius
-                        var newAngle = rand(currRadius.angle, currRadius.angle + angleDifference);
+                        var newAngle = rand(currRadius.angle, currRadius.angle + angleDifference); // 387 
+                        // Angle from current to newly generated radius
                         var angleCurrNew = (newAngle - currRadius.end.getAngle(middle) + 360) % 360;
-                        var angleNextCurr = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360;
+                        // Angle from next newly generated radius to next angle
+                        var angleNextNew = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360; // = 115 for the 330 to 85 case
 
-                        while (angleCurrNew < angleDifference * minRadiusAngleFactor || angleNextCurr < angleDifference * minRadiusAngleFactor) {
+                        while (angleCurrNew < angleDifference * minRadiusAngleFactor || angleNextNew < angleDifference * minRadiusAngleFactor) {
                             newAngle = rand(currRadius.angle, currRadius.angle + angleDifference);
                             angleCurrNew = (newAngle - currRadius.end.getAngle(middle) + 360) % 360;
-                            angleNextCurr = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360;
+                            angleNextNew = (nextRadius.end.getAngle(middle) - newAngle + 360) % 360;
                         }
 
-                        const unitRadiusLine = new Line(middle, new Vector(Math.cos(degToRad(newAngle)), Math.sin(degToRad(newAngle))).plus(middle));
+                        const newAngle360 = (newAngle + 360) % 360;
+
+                        const unitRadiusLine = new Line(middle, new Vector(Math.cos(degToRad(newAngle360)), Math.sin(degToRad(newAngle360))).plus(middle));
 
                         // Find the border thread that the new radius will first intersect
                         var border = borderThreads[0];
-                        var minDist = unitRadiusLine.intersect(border).toSpace(middle).mag();
+                        var minDist: number | null = null;
+                        var relInter = unitRadiusLine.intersect(borderThreads[0]).toSpace(middle);
                         
                         for (let j = 0; j < borderThreads.length; j++) {
                             const intersectPoint = unitRadiusLine.intersect(borderThreads[j]);
 
                             const nextDist = intersectPoint.toSpace(middle).mag();
-                            const relInter = intersectPoint.toSpace(middle);
+                            relInter = intersectPoint.toSpace(middle);
                             const relUnitEnd = unitRadiusLine.end.toSpace(middle);
 
-                            if (Math.sign(relInter.x) === Math.sign(relUnitEnd.x) && Math.sign(relInter.y) === Math.sign(relUnitEnd.y) && nextDist < minDist) {
+                            if (Math.sign(relInter.x) === Math.sign(relUnitEnd.x) && Math.sign(relInter.y) === Math.sign(relUnitEnd.y) && (minDist == null || nextDist < minDist)) {
                                 minDist = nextDist;
                                 border = borderThreads[j];
                             }
                         }
 
-                        const newRadius = new Radius(middle, unitRadiusLine.intersect(border), newAngle);
+                        const newRadius = new Radius(middle, unitRadiusLine.intersect(border), newAngle360);
                         // Adds a new radius after the current radius
                         spokes.splice((i + 1) % spokes.length, 0, newRadius);
                         radii.push(newRadius);
@@ -377,7 +382,6 @@ const Canvas = () => {
                 var fuzzedPoint = fuzz(pointOnSpiral, 0.05);
 
                 // If spiral point goes over, set it to the length
-                // TODO: HANDLE EDGE CASE OF LIMITING FUZZED POINT TO UNDER LENGTH OF Y LINES, WHICH GO PAST FRAMES, AS WELL
                 if (fuzzedPoint > spokes[auxI].length) fuzzedPoint = spokes[auxI].length;
 
                 const nextPoint = spokes[auxI].pointAtAbs(fuzzedPoint);
