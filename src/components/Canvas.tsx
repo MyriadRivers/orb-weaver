@@ -227,7 +227,7 @@ const Canvas = () => {
             // Y Shape threads and anchor threads
             const branchA = new Line(originA, middle);
             const branchB = new Line(originB, middle);
-            const branchC = new Line(middle, originC);
+            const branchC = new Line(originC, middle);
             
             // Three main axes
             axisA = new Line(originA, branchA.intersect(anchorA));
@@ -235,17 +235,42 @@ const Canvas = () => {
             axisC = new Line(originC, branchC.intersect(bridge));
 
             // Frame threads
-            const framePos = 0.2;
-            const frameFuzz = 0.1;
-            const frameA = Math.random() < 0.5 ? 
-                            new Line(bridge.pointAt(fuzz(framePos, frameFuzz)), anchorB.pointAt(fuzz(framePos, frameFuzz))) 
-                            : new Line(anchorB.pointAt(fuzz(framePos, frameFuzz)), bridge.pointAt(fuzz(framePos, frameFuzz)));
-            const frameB = Math.random() < 0.5 ? 
-                            new Line(bridge.pointAt(fuzz(1 - framePos, frameFuzz)), anchorA.pointAt(fuzz(framePos, frameFuzz))) 
-                            : new Line(anchorA.pointAt(fuzz(framePos, frameFuzz)), bridge.pointAt(fuzz(1 - framePos, frameFuzz)));
-            const frameC = Math.random() < 0.5 ? 
-                            new Line(anchorB.pointAt(fuzz(1 - framePos, frameFuzz)), anchorA.pointAt(fuzz(1 - framePos, frameFuzz))) 
-                            : new Line(anchorA.pointAt(fuzz(1 - framePos, frameFuzz)), anchorB.pointAt(fuzz(1 - framePos, frameFuzz)));
+
+            const axisLeftA = new Line(middle, axisA.end);
+            const axisLeftB = new Line(middle, axisB.end);
+            const axisLeftC = new Line(middle, axisC.end);
+
+            // Radius of largest circle that be inscribed within the triangle, which approximates the size of the spiral
+            const incircleRadius = [axisLeftA.length, axisLeftB.length, axisLeftC.length].sort((a, b) => {return a - b})[0];
+
+            const axisAFramePoint = branchA.reverse().pointAtAbs(incircleRadius);
+            const axisAPara = middle.toSpace(axisAFramePoint);
+            // Line perpendicular to axis A at the incircle radius point
+            const axisAPerpVec = new Vector(axisAPara.y, - axisAPara.x).plus(axisAFramePoint);
+            const aPerp = new Line(axisAFramePoint, axisAPerpVec);
+
+            const axisBFramePoint = branchB.reverse().pointAtAbs(incircleRadius);
+            const axisBPara = middle.toSpace(axisBFramePoint);
+            const axisBPerpVec = new Vector(axisBPara.y, - axisBPara.x).plus(axisBFramePoint);
+            const bPerp = new Line(axisBFramePoint, axisBPerpVec);
+
+            const axisCFramePoint = branchC.reverse().pointAtAbs(incircleRadius);
+            const axisCPara = middle.toSpace(axisCFramePoint);
+            const axisCPerpVec = new Vector(axisCPara.y, - axisCPara.x).plus(axisCFramePoint);
+            const cPerp = new Line(axisCFramePoint, axisCPerpVec);
+
+            const framePointAB = fuzz(new Line(originA, aPerp.intersect(anchorB)).length / anchorB.length);
+            const framePointAC = fuzz(new Line(originA, aPerp.intersect(bridge)).length / bridge.length);
+
+            const framePointBA = fuzz(new Line(originB, bPerp.intersect(anchorA)).length / anchorA.length);
+            const framePointBC = fuzz(new Line(originB, bPerp.intersect(bridge)).length / bridge.length);
+
+            const framePointCA = fuzz(new Line(originC, cPerp.intersect(anchorA)).length / anchorA.length);
+            const framePointCB = fuzz(new Line(originC, cPerp.intersect(anchorB)).length / anchorB.length);
+
+            const frameA = new Line(anchorB.pointAt(framePointAB), bridge.pointAt(framePointAC));
+            const frameB = new Line(anchorA.pointAt(framePointBA), bridge.reverse().pointAt(framePointBC));
+            const frameC = new Line(anchorB.reverse().pointAt(framePointCB), anchorA.reverse().pointAt(framePointCA));
 
             // Array containing the outmost border threads where radius threads will stop
             const borderThreads = [bridge, anchorA, anchorB, frameA, frameB, frameC];
@@ -414,9 +439,9 @@ const Canvas = () => {
             await weaveLines([anchorA]);
             await weaveLines([anchorB]);
 
-            await weaveLines([frameA]);
-            await weaveLines([frameB]);
-            await weaveLines([frameC]);
+            Math.random() < 0.5 ? await weaveLines([frameA]) : await weaveLines([frameA.reverse()]);
+            Math.random() < 0.5 ? await weaveLines([frameB]) : await weaveLines([frameB.reverse()]);
+            Math.random() < 0.5 ? await weaveLines([frameC]) : await weaveLines([frameC.reverse()]);
 
             // for (let i = 0; i < radii.length; i++) {
             //     // Randomize direction of radius threads

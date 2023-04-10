@@ -151,6 +151,14 @@ export class Line {
         const percentPos = position / this.length;
         return this.start.plus(this.end.toSpace(this.start).scale(percentPos));
     }
+
+    /**
+     * Returns a reversed copy of the line.
+     * @returns Line going in the opposite direction, from original end to original start.
+     */
+    reverse(): Line {
+        return new Line(this.end, this.start);
+    }
 }
 
 /**
