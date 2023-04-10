@@ -40,7 +40,6 @@ const Canvas = () => {
         if (canvas != null) {
             canvas.width = window.innerWidth - 50;
             canvas.height = window.innerHeight - 50;
-            console.log(canvas.width + " " + canvas.height)
             ctxRef.current = canvas.getContext('2d');
         }
     }, [])
@@ -328,12 +327,37 @@ const Canvas = () => {
             }
 
             // GENERATE THE AUXILIARY SPIRAL
+            var auxiliarySpiral = new Array<Line>();
+
             spokes.sort(sortByAngle);
             const startSpokeIndex = randInt(0, spokes.length);
-            const clockwiseAux = Math.random() < 0.5 ? true : false;
-            var auxSpiralPoint = 1 / auxRings;
+            const auxDir = Math.random() < 0.5 ? true : false;
+            var auxWidth = 1 / auxRings;
+            var auxIncrement = (auxWidth / spokes.length) * spokes[startSpokeIndex].length;
 
-            // GENERATE AUXILIARY SPIRAL
+            var auxIndex = startSpokeIndex;
+            var pointOnSpiral = auxWidth * spokes[auxIndex].length;
+            var prevPoint = spokes[auxIndex].pointAtAbs(pointOnSpiral);
+            spokes[auxIndex].auxPoints.push(prevPoint);
+
+            var auxI = auxIndex;
+
+            while (pointOnSpiral < spokes[auxI].length) {
+                // Direction of spiral iteration is random
+                auxDir === true ? auxIndex++ : auxIndex--;
+                pointOnSpiral += auxIncrement;
+
+                // Circularly iterates through array regardless of positive or negative indices
+                auxI = ((auxIndex % spokes.length) + spokes.length) % spokes.length;
+                // TODO: fuzz point on spiral
+                const nextPoint = spokes[auxI].pointAtAbs(pointOnSpiral);
+                spokes[auxI].auxPoints.push(nextPoint);
+
+                const auxLine = new Line(prevPoint, nextPoint);
+                prevPoint = nextPoint;
+                auxiliarySpiral.push(auxLine);
+            }
+            
 
             // GENERATE CAPTURE SPIRAL
 
@@ -342,10 +366,11 @@ const Canvas = () => {
             
             // ACTUAL RENDERING OF ALL THE THREADS 
 
-            // Renders all the radii at once
-            // radii.forEach(async radius => {
-            //     await weaveLines([radius]);
-            // });
+            // Renders all the radii at once, useful for testing
+            await weaveLines(radii);
+
+            // Renders aux spiral all at once
+            await weaveLines(auxiliarySpiral);
 
             await weaveLines([bridge]);
             
@@ -359,11 +384,11 @@ const Canvas = () => {
             await weaveLines([frameB]);
             await weaveLines([frameC]);
 
-            for (let i = 0; i < radii.length; i++) {
-                // Randomize direction of radius threads
-                const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
-                await weaveLines([randRadius]);
-            }
+            // for (let i = 0; i < radii.length; i++) {
+            //     // Randomize direction of radius threads
+            //     const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
+            //     await weaveLines([randRadius]);
+            // }
         }   
     }
 

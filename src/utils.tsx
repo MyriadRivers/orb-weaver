@@ -106,10 +106,12 @@ export class Vector {
 export class Line {
     start: Vector;
     end: Vector;
+    length: number;
 
     constructor(start: Vector, end: Vector) {
         this.start = start;
         this.end = end;
+        this.length = end.toSpace(start).mag();
     }
 
     /**
@@ -134,20 +136,38 @@ export class Line {
     }
 
     /**
-     * Returns the Vector found along the line at the given position. 
+     * Returns the Vector found along the line at the given position from 0 to 1. 
      * @param position Position along line, with 0 being the start and 1 being the end of the line.
      */
     pointAt(position: number): Vector {
         return this.start.plus(this.end.toSpace(this.start).scale(position));
     }
+
+    /**
+     * Returns the Vector found along the line at the given absolute position. 
+     * @param position Position along line in pixels.
+     */
+    pointAtAbs(position: number): Vector {
+        const percentPos = position / this.length;
+        return this.start.plus(this.end.toSpace(this.start).scale(percentPos));
+    }
 }
 
+/**
+ * Radial thread on a spider web, which holds the auxiliary and capture spiral threads.
+ */
 export class Radius extends Line {
     angle: number;
+    // Points on the auxiliary spiral
+    auxPoints: Array<Vector>;
+    // Points on the capture spiral
+    capPoints: Array<Vector>;
 
     constructor(start: Vector, end: Vector, angle: number) {
         super(start, end);
         this.angle = angle;
+        this.auxPoints = new Array<Vector>();
+        this.capPoints = new Array<Vector>();
     }
 }
 
