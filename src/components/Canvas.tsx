@@ -272,9 +272,12 @@ const Canvas = () => {
 
             var radii = new Array<Radius>();
             // Spokes are the radii but also include the branches
-            var spokes = radii.concat([new Radius(middle, originA, originA.getAngle(middle)), 
-                                       new Radius(middle, originB, originB.getAngle(middle)), 
-                                       new Radius(middle, originC, originC.getAngle(middle))]);
+            const outwardsA = new Line(middle, originA);
+            const outwardsB = new Line(middle, originB);
+            const outwardsC = new Line(middle, originC);
+            var spokes = radii.concat([new Radius(middle, outwardsA.intersect(frameA), originA.getAngle(middle)), 
+                                       new Radius(middle, outwardsB.intersect(frameB), originB.getAngle(middle)), 
+                                       new Radius(middle, outwardsC.intersect(frameC), originC.getAngle(middle))]);
 
             // ADD SPOKES RANDOMLY UNTIL THERE IS NO SPACE LEFT, DEPENDING ON GAP SIZE
             spokes.sort(sortByAngle);
