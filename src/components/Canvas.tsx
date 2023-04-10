@@ -202,27 +202,32 @@ const Canvas = () => {
             const width = canvasRef.current.width;
             const height = canvasRef.current.height;
 
-            const middleX = fuzz(width / 2);
-            const middleY = fuzz(height / 2);
-
             // GENERATE ALL THREADS AND POINTS BEFORE RENDERING
 
             // Points that define the triangle
             const originA = new Vector(0, fuzz(initY, 1));
             const originB = new Vector(width, fuzz(initY, 1));
             const originC = new Vector(fuzz(width / 2), height)
-            const middle = new Vector(middleX, middleY);
-            
-            // Bridge thread
+
+            const bisectorAAngle = (originC.getAngle(originA) - originB.getAngle(originA)) / 2 + originB.getAngle(originA);
+            const bisectorA = new Line(originA, new Vector(Math.cos(degToRad(bisectorAAngle)), Math.sin(degToRad(bisectorAAngle))).plus(originA));
+            const bisectorBAngle = (originC.getAngle(originB) - originA.getAngle(originB)) / 2 + originA.getAngle(originB);
+            const bisectorB = new Line(originB, new Vector(Math.cos(degToRad(bisectorBAngle)), Math.sin(degToRad(bisectorBAngle))).plus(originB));
+
+            // Incenter of the triangle based on intersection of the angle bisectors
+            const incenter = bisectorA.intersect(bisectorB);
+
+            // Bridge thread, sides of the triangle
             bridge = new Line(originA, originB);
+            anchorA = new Line(originB, originC);
+            anchorB = new Line(originA, originC);
+
+            const middle = new Vector(fuzz(incenter.x), fuzz(incenter.y));
 
             // Y Shape threads and anchor threads
             const branchA = new Line(originA, middle);
             const branchB = new Line(originB, middle);
             const branchC = new Line(middle, originC);
-
-            anchorA = new Line(originB, originC);
-            anchorB = new Line(originA, originC);
             
             // Three main axes
             axisA = new Line(originA, branchA.intersect(anchorA));
