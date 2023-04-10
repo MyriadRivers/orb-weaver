@@ -252,8 +252,17 @@ const Canvas = () => {
              * @returns Comparison value.
              */
             const sortByAngle = (r1: Radius, r2: Radius): number => {
-                return Math.sign(r1.angle - r2.angle);
-                 
+                return Math.sign(r1.angle - r2.angle);  
+            }
+
+            /**
+             * Comparison function to sort lines by their length.
+             * @param l1 First line.
+             * @param r2 Second line.
+             * @returns Comparison value.
+             */
+            const sortByLength = (l1: Line, l2: Line): number => {
+                return Math.sign(l1.length - l2.length);
             }
 
             var radii = new Array<Radius>();
@@ -330,13 +339,20 @@ const Canvas = () => {
             var auxiliarySpiral = new Array<Line>();
 
             spokes.sort(sortByAngle);
+            var spokesByLength = spokes.slice();
+
+            // Get spacing by shortest spoke to ensure we don't get cut off too early
+            spokesByLength.sort(sortByLength);
+            const shortestSpokeLength = spokesByLength[0].length;
+
+
             const startSpokeIndex = randInt(0, spokes.length);
             const auxDir = Math.random() < 0.5 ? true : false;
             var auxWidth = 1 / auxRings;
-            var auxIncrement = (auxWidth / spokes.length) * spokes[startSpokeIndex].length;
+            var auxIncrement = (auxWidth / spokes.length) * shortestSpokeLength;
 
             var auxIndex = startSpokeIndex;
-            var pointOnSpiral = auxWidth * spokes[auxIndex].length;
+            var pointOnSpiral = auxWidth * shortestSpokeLength;
             var prevPoint = spokes[auxIndex].pointAtAbs(pointOnSpiral);
             spokes[auxIndex].auxPoints.push(prevPoint);
 
