@@ -434,7 +434,7 @@ const Canvas = () => {
             await weaveLines([bridge]);
             
             await weaveLines([branchA, branchB]);
-            await weaveLines([branchC]);
+            await weaveLines([branchC.reverse()]);
 
             await weaveLines([anchorA]);
             await weaveLines([anchorB]);
