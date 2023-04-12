@@ -164,19 +164,13 @@ export class Line {
     /**
      * Checks if a given point lies on the line.
      * @param point Point to check.
+     * @param extendedLine Whether to check if point is on the line extended to infinity or just on the finite line segment. Default is false (must lie on segment).
      * @returns Boolean value representing if the specified point lies on this line, inclusive of ends.
      */
-    contains(point: Vector): boolean {
-        // If the line is vertical
-        if (this.start.x === point.x && this.end.x === point.x) {
-            return Math.sign(point.y - this.start.y) === Math.sign(this.end.y - point.y) || point.y === this.start.y || point.y === this.end.y;
-        }
-        // If the line is vertical
-        if (this.start.y === point.y && this.end.y === point.y) {
-            return Math.sign(point.x - this.start.x) === Math.sign(this.end.x - point.x) || point.x === this.start.x || point.x === this.end.x;
-        }
-        // match the gradients
-        return (this.start.x - point.x) / (this.start.y - point.y) === (point.x - this.end.x) / (point.y - this.end.y);
+    contains(point: Vector, extendedLine: boolean = false): boolean {
+        const withinBounds = Math.sign(this.start.distanceTo(point)) === Math.sign(point.distanceTo(this.end));
+        const equalDistance = round(this.start.distanceTo(point) + point.distanceTo(this.end), 5) === round(this.length, 5);
+        return extendedLine ? equalDistance : equalDistance && withinBounds;
     }
 
     /**
@@ -288,4 +282,15 @@ export const radToDeg = (angle: number): number => {
  */
 export const degToRad = (angle: number): number => {
     return angle * (Math.PI / 180);
+}
+
+/**
+ * Rounds a number to a specified number of decimal points.
+ * @param num Number to round.
+ * @param decimals Decimal points to round to.
+ * @returns Rounded number.
+ */
+export const round = (num: number, decimals: number): number => {
+    const magnitude = Math.pow(10, decimals);
+    return Math.round(num * magnitude) / magnitude;
 }

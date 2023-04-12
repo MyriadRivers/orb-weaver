@@ -35,7 +35,7 @@ const Canvas = () => {
     const capCapacity = 2;
 
     // Determines how fast threads are spun
-    const speed = 5;
+    const speed = 15;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -431,6 +431,16 @@ const Canvas = () => {
                 }
             }
 
+            // Check all the auxiliary spiral spokes, debugging
+            for (let i = 0; i < spokes.length; i++) {
+                console.log("Spoke auxliary points for spoke " + i);
+                for (let j = 0; j < spokes[i].auxPoints.length; j++) {
+                    console.log(spokes[i].lineValueAt(spokes[i].auxPoints[j]));
+                    console.log("a + b: " + (spokes[i].start.distanceTo(spokes[i].auxPoints[j]) + spokes[i].auxPoints[j].distanceTo(spokes[i].end)));
+                    console.log("length" + spokes[i].length);
+                }
+            }
+
             // GENERATE CAPTURE SPIRAL
             var captureSpiral = new Array<Line>();
             var ringEnds = new Array<Vector>();
@@ -448,15 +458,6 @@ const Canvas = () => {
                     ringEnds.push(terminalSpoke.pointAt(startRingEnd));
                 }
             };
-
-            // Check all the auxiliary spiral spokes, debugging
-            for (let i = 0; i < spokes.length; i++) {
-                console.log("Spoke auxliary points for spoke " + i);
-                for (let j = 0; j < spokes[i].auxPoints.length; i++) {
-                    console.log(spokes[i].lineValueAt(spokes[i].auxPoints[j]));
-                }
-            }
-            
 
             var currSpoke = terminalSpoke;
             // Keep adding capture threads so long as the active ring, where the threads are going inside, has one more auxiliary ring above it
