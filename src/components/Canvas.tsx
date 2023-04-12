@@ -31,6 +31,9 @@ const Canvas = () => {
     // Determines the number of rings in the auxiliary spiral
     const auxRings = 5;
 
+    // How many capture rings should be between two adjacent arms of the auxiliary spiral
+    const capCapacity = 2;
+
     // Determines how fast threads are spun
     const speed = 5;
 
@@ -300,6 +303,9 @@ const Canvas = () => {
             const outwardsA = new Line(middle, originA);
             const outwardsB = new Line(middle, originB);
             const outwardsC = new Line(middle, originC);
+            /**
+             * Radial threads including branches that go from the middle to the frames of the web.
+             */
             var spokes = radii.concat([new Radius(middle, outwardsA.intersect(frameA), originA.getAngle(middle)), 
                                        new Radius(middle, outwardsB.intersect(frameB), originB.getAngle(middle)), 
                                        new Radius(middle, outwardsC.intersect(frameC), originC.getAngle(middle))]);
@@ -395,6 +401,8 @@ const Canvas = () => {
             spokes[auxIndex].auxPoints.push(prevPoint);
 
             var auxI = auxIndex;
+            var terminalSpoke = spokes[auxIndex];
+            var terminalSpokeIndex = auxI;
 
             while (pointOnSpiral < spokes[auxI].length) {
                 // Direction of spiral iteration is random
@@ -415,10 +423,87 @@ const Canvas = () => {
                 const auxLine = new Line(prevPoint, nextPoint);
                 prevPoint = nextPoint;
                 auxiliarySpiral.push(auxLine);
+
+                if (pointOnSpiral >= spokes[auxI].length) {
+                    terminalSpoke = spokes[auxI];
+                    terminalSpokeIndex = auxI;
+                }
+            }
+
+            // GENERATE CAPTURE SPIRAL
+            var captureSpiral = new Array<Line>();
+            var ringEnds = new Array<Vector>();
+
+            const startOutBound = terminalSpoke.auxPoints[0];
+            const startInBound = terminalSpoke.auxPoints[1];
+            const startOutPoint = terminalSpoke.lineValueAt(startOutBound);
+            const startInPoint = terminalSpoke.lineValueAt(startInBound);
+            var startAuxZone;
+
+            if (startOutPoint && startInPoint) {
+                startAuxZone = startOutPoint - startInPoint
+                for (let i = 0; i < capCapacity; i++) {
+                    const startRingEnd = ((capCapacity - i) * (startAuxZone / (capCapacity + 1))) + startInPoint;
+                    ringEnds.push(terminalSpoke.pointAt(startRingEnd));
+                }
+            };
+
+            // Check all the auxiliary spiral spokes
+            for (let i = 0; i < spokes.length; i++) {
+                console.log("Spoke auxliary points for spoke " + i);
+                for (let j = 0; j < spokes[i].auxPoints.length; i++) {
+                    console.log(spokes[i].lineValueAt(spokes[i].auxPoints[j]));
+                }
             }
             
 
-            // GENERATE CAPTURE SPIRAL
+            var currSpoke = terminalSpoke;
+            // Keep adding capture threads so long as the active ring, where the threads are going inside, has one more auxiliary ring above it
+            // I.e. terminate the capture threads above the last auxiliary ring on the spoke where the auxiliary ring terminates
+            for (let currRing = 0; currRing < currSpoke.auxPoints.length - 1; currRing++) {
+
+                for (let capCount = 0; capCount < capCapacity; capCount++) {
+
+                    var prevCapPoint: Vector | undefined = ringEnds.shift();
+                    var spokeCounter = terminalSpokeIndex;
+                    // Iterate through spokes opposite the direction of the auxiliary spiral until back at starting spoke
+                    for (let i = 0; i <= spokes.length; i++) {
+                        auxDir === true ? spokeCounter-- : spokeCounter++;
+                        var spokeI = ((spokeCounter % spokes.length) + spokes.length) % spokes.length;
+                        currSpoke = spokes[spokeI];
+
+                        if (currRing >= currSpoke.auxPoints.length - 1) break;
+
+                        const outBound = currSpoke.auxPoints[currRing];
+                        const inBound = currSpoke.auxPoints[currRing + 1];
+                        const outPoint = currSpoke.lineValueAt(outBound);
+                        const inPoint = currSpoke.lineValueAt(inBound);
+
+                        if (outPoint && inPoint) {
+                            const auxZone = outPoint - inPoint;
+                            // Split auxZone into equal segments based on how many capture rings we want, represented as capCapacity
+                            // Then iterate backwards from capCapacity to make rings from the outside in (e.g. 3/4, 2/4, 1/4), as radii go from the middle of the web outwards
+                            // Finally add the fraction to the inner boundary to get the total lineValue of the new point
+                            const pointLocation = ((capCapacity - capCount) * (auxZone / (capCapacity + 1))) + inPoint;
+    
+                            // NOW put the point on the line and connect them
+                            const capPoint = spokes[spokeI].pointAt(pointLocation);
+                            spokes[spokeI].capPoints.push(capPoint);
+                            
+                            
+                            if (prevCapPoint !== undefined) {
+                                const capSegment = new Line(prevCapPoint, capPoint);
+                                captureSpiral.push(capSegment);
+                                await weaveLines([capSegment]);
+                            }
+                            prevCapPoint = capPoint;
+                            if (i === spokes.length) {
+                                ringEnds.push(capPoint);
+                            }
+                        }
+                    }
+                }
+            }
 
             // Randomize the order that we draw the radii in
             shuffle(radii);

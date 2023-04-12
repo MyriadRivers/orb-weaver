@@ -98,6 +98,15 @@ export class Vector {
         }
         return inDegrees ? angle : degToRad(angle);
     }
+    
+    /**
+     * Gets the distance from this vector to the given point.
+     * @param point Point to calculate the distance to.
+     * @returns The distance from this vector to the point.
+     */
+    distanceTo(point: Vector): number {
+        return Math.sqrt(Math.pow(point.x - this.x, 2) + Math.pow(point.y - this.y, 2));
+    }
 }
 
 /**
@@ -150,6 +159,36 @@ export class Line {
     pointAtAbs(position: number): Vector {
         const percentPos = position / this.length;
         return this.start.plus(this.end.toSpace(this.start).scale(percentPos));
+    }
+
+    /**
+     * Checks if a given point lies on the line.
+     * @param point Point to check.
+     * @returns Boolean value representing if the specified point lies on this line, inclusive of ends.
+     */
+    contains(point: Vector): boolean {
+        // If the line is vertical
+        if (this.start.x === point.x && this.end.x === point.x) {
+            return Math.sign(point.y - this.start.y) === Math.sign(this.end.y - point.y) || point.y === this.start.y || point.y === this.end.y;
+        }
+        // If the line is vertical
+        if (this.start.y === point.y && this.end.y === point.y) {
+            return Math.sign(point.x - this.start.x) === Math.sign(this.end.x - point.x) || point.x === this.start.x || point.x === this.end.x;
+        }
+        // match the gradients
+        return (this.start.x - point.x) / (this.start.y - point.y) === (point.x - this.end.x) / (point.y - this.end.y);
+    }
+
+    /**
+     * Finds where a given point is on the line relative to the line's length. 
+     * @param point Vector to check.
+     * @returns Number from 0 to 1 representing where the point is on the line, or null if the point is not on the line.
+     */
+    lineValueAt(point: Vector): number | null {
+        if (this.contains(point)) {
+            return new Line(this.start, point).length / this.length;
+        }
+        return null;
     }
 
     /**
