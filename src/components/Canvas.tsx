@@ -419,6 +419,7 @@ const Canvas = () => {
 
                 const nextPoint = spokes[auxI].pointAtAbs(fuzzedPoint);
                 spokes[auxI].auxPoints.push(nextPoint);
+                console.log("Spoke " + auxI + " just got an aux point at " + fuzzedPoint);
 
                 const auxLine = new Line(prevPoint, nextPoint);
                 prevPoint = nextPoint;
@@ -448,7 +449,7 @@ const Canvas = () => {
                 }
             };
 
-            // Check all the auxiliary spiral spokes
+            // Check all the auxiliary spiral spokes, debugging
             for (let i = 0; i < spokes.length; i++) {
                 console.log("Spoke auxliary points for spoke " + i);
                 for (let j = 0; j < spokes[i].auxPoints.length; i++) {
