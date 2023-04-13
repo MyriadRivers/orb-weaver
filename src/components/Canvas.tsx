@@ -62,10 +62,11 @@ const Canvas = () => {
     const capCapacity = 2;
 
     // Determines how fast threads are spun
-    const speed = 100;
+    var lineSoundPoint: number;
+    const speed = 4;
 
     const scale = Scale.PENTATONIC;
-    const octaves = 5;
+    const octaves = 4;
     const tremSpeed = 20;
     const reverbOn = true;
     const randOctaves = false;
@@ -98,7 +99,7 @@ const Canvas = () => {
         // }
         reverbRef.current = new Tone.Reverb(5);
         reverbRef.current.toDestination();
-        chorusRef.current = new Tone.Chorus(20, 5, 1).connect(reverbRef.current);
+        chorusRef.current = new Tone.Chorus(15, 5, 1).connect(reverbRef.current);
         filterRef.current = new Tone.Filter(undefined, "lowpass").connect(chorusRef.current);
 
     }, [reverbOn]);
@@ -216,9 +217,9 @@ const Canvas = () => {
                     }
                 } else {
                     if (reverbRef.current && chorusRef.current && filterRef.current && axisA && anchorA && axisB && anchorB && axisC && bridge) {
-                        reverbRef.current.wet.rampTo(p.percentOf(axisA, anchorA), 0);
-                        chorusRef.current.feedback.rampTo(p.percentOf(axisB, anchorB), 0);
-                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 200, 0);
+                        reverbRef.current.wet.rampTo(p.percentOf(axisA, anchorA), 0.1);
+                        chorusRef.current.feedback.rampTo(p.percentOf(axisB, anchorB), 0.1);
+                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 200, 0.1);
                     }
                 }
                 
@@ -315,7 +316,7 @@ const Canvas = () => {
 
     const soundPassive = (line: Line) => {
         // Passive sound is based off the midpoint of the line
-        var p = line.pointAt(0.5);
+        var p = line.pointAt(lineSoundPoint);
         if (bridge && axisA && axisB && anchorA && anchorB) {
             var freeOsc = getFreeOsc();
 
@@ -368,6 +369,9 @@ const Canvas = () => {
     // Actual sequence for weaving the web
     const weaveWeb = async () => {
         Tone.Transport.start();
+        // Web is based off a different point on the line each time
+        lineSoundPoint = Math.random();
+
         if (canvasRef.current != null) {
             canvasRef.current.width = window.innerWidth - 50;
             canvasRef.current.height = window.innerHeight - 150;
@@ -683,17 +687,31 @@ const Canvas = () => {
 
             // Randomize the order that we draw the radii in
             shuffle(radii);
+
+            const drawAnchorA = anchorA;
+            const drawAnchorB = anchorB;
+            const drawBridge = bridge;
+
+            // Randomize the sound axes after establishing the frames to randomize how sounds are mapped
+            var axes = [{axis: axisA, anchor: anchorA}, {axis: axisB, anchor: anchorB}, {axis: axisC, anchor: bridge}];
+            shuffle(axes);
+            axisA = axes[0].axis;
+            axisB = axes[1].axis;
+            axisC = axes[2].axis;
+            anchorA = axes[0].anchor;
+            anchorB = axes[1].anchor;
+            bridge = axes[2].anchor;
             
             // ACTUAL RENDERING OF ALL THE THREADS 
 
-            await weaveLines([bridge]);
+            await weaveLines([drawBridge]);
             
             await weaveLines([branchA]);
             await weaveLines([branchB]);
             await weaveLines([branchC.reverse()]);
 
-            await weaveLines([anchorA]);
-            await weaveLines([anchorB]);
+            await weaveLines([drawAnchorA]);
+            await weaveLines([drawAnchorB]);
 
             Math.random() < 0.5 ? await weaveLines([frameA]) : await weaveLines([frameA.reverse()]);
             Math.random() < 0.5 ? await weaveLines([frameB]) : await weaveLines([frameB.reverse()]);
