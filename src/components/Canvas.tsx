@@ -94,8 +94,6 @@ const Canvas = () => {
         chorusRef.current = new Tone.Chorus().connect(reverbRef.current);
         filterRef.current = new Tone.Filter(undefined, "lowpass").connect(chorusRef.current);
 
-        Tone.Transport.start();
-
     }, [reverbOn]);
 
     /**
@@ -362,6 +360,7 @@ const Canvas = () => {
 
     // Actual sequence for weaving the web
     const weaveWeb = async () => {
+        Tone.Transport.start();
         if (canvasRef.current != null) {
             const width = canvasRef.current.width;
             const height = canvasRef.current.height;
