@@ -3,6 +3,7 @@ import { MutableRefObject, useEffect, useRef, useState } from "react"
 import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt, numToScale, Scale } from "../utils";
 import { Button } from "./styled/Button.styled";
 import { Label } from "./styled/Label.styled";
+import { Container } from "./styled/Container.styled";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -13,6 +14,9 @@ const Canvas = () => {
 
     const [activeLines, setActiveLines] = useState(new Array<Line>());
     const [passiveLines, setPassiveLines] = useState(new Array<Line>());
+    const [playing, setPlaying] = useState(false);
+    const [display, setDisplay] = useState(false);
+    const [hover, setHover] = useState(false);
 
     // The three major axes for determining sound
     var axisA: Line | null = null;
@@ -23,14 +27,14 @@ const Canvas = () => {
     var bridge: Line | null = null;
 
     interface OscState {
-        osc1: Tone.Oscillator;
+        osc1?: Tone.Oscillator;
         osc2?: Tone.Oscillator;
         synth?: Tone.Synth;
         gain1?: Tone.Gain;
         gain2?: Tone.Gain;
         trem1?: Tone.Tremolo;
         trem2?: Tone.Tremolo;
-        master: Tone.Gain;
+        master?: Tone.Gain;
         pan?: Tone.Panner;
         ampEnv?: Tone.Envelope;
         reverb?: Tone.Reverb;
@@ -58,7 +62,7 @@ const Canvas = () => {
     const capCapacity = 2;
 
     // Determines how fast threads are spun
-    const speed = 10;
+    const speed = 100;
 
     const scale = Scale.PENTATONIC;
     const octaves = 5;
@@ -68,6 +72,8 @@ const Canvas = () => {
 
     const bridgeRepeatTime = 10;
     const activeSound = false;
+
+    const reduceNodes = true;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -90,9 +96,9 @@ const Canvas = () => {
         //     reverbRef.current = new Tone.Reverb();
         //     reverbRef.current.toDestination();
         // }
-        reverbRef.current = new Tone.Reverb();
+        reverbRef.current = new Tone.Reverb(5);
         reverbRef.current.toDestination();
-        chorusRef.current = new Tone.Chorus().connect(reverbRef.current);
+        chorusRef.current = new Tone.Chorus(20, 5, 1).connect(reverbRef.current);
         filterRef.current = new Tone.Filter(undefined, "lowpass").connect(chorusRef.current);
 
     }, [reverbOn]);
@@ -122,7 +128,7 @@ const Canvas = () => {
             if (activeSound) {
                 freeOsc = getFreeOsc();
             
-                if (freeOsc.osc2 && freeOsc.trem1 && freeOsc.trem2 && freeOsc.gain1 && freeOsc.gain2 && freeOsc.master) {
+                if (freeOsc.osc1 && freeOsc.osc2 && freeOsc.trem1 && freeOsc.trem2 && freeOsc.gain1 && freeOsc.gain2 && freeOsc.master) {
                     freeOsc.osc1.type = "sine";
                     freeOsc.osc2.type = "sawtooth";
 
@@ -211,8 +217,8 @@ const Canvas = () => {
                 } else {
                     if (reverbRef.current && chorusRef.current && filterRef.current && axisA && anchorA && axisB && anchorB && axisC && bridge) {
                         reverbRef.current.wet.rampTo(p.percentOf(axisA, anchorA), 0);
-                        chorusRef.current.wet.rampTo(p.percentOf(axisB, anchorB), 0);
-                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 2000, 0);
+                        chorusRef.current.feedback.rampTo(p.percentOf(axisB, anchorB), 0);
+                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 200, 0);
                     }
                 }
                 
@@ -283,23 +289,23 @@ const Canvas = () => {
             }
         }
         const newOscState: OscState = {
-            osc1: new Tone.Oscillator(),
-            osc2: new Tone.Oscillator(),
+            osc1: reduceNodes ? undefined : new Tone.Oscillator(),
+            osc2: reduceNodes ? undefined : new Tone.Oscillator(),
             synth: new Tone.Synth(),
-            gain1: new Tone.Gain(0),
-            gain2: new Tone.Gain(0),
-            trem1: new Tone.Tremolo(0, 1.0),
-            trem2: new Tone.Tremolo(0, 1.0),
-            master: new Tone.Gain(1),
+            gain1: reduceNodes ? undefined : new Tone.Gain(0),
+            gain2: reduceNodes ? undefined : new Tone.Gain(0),
+            trem1: reduceNodes ? undefined : new Tone.Tremolo(0, 1.0),
+            trem2: reduceNodes ? undefined : new Tone.Tremolo(0, 1.0),
+            master: reduceNodes ? undefined : new Tone.Gain(1),
 
             pan: new Tone.Panner(),
-            ampEnv: new Tone.AmplitudeEnvelope({
+            ampEnv: reduceNodes ? undefined : new Tone.AmplitudeEnvelope({
                 attack: 0.1,
                 decay: 0.2,
                 sustain: 1.0,
                 release: 0.8
             }),
-            reverb: new Tone.Reverb(),
+            reverb: reduceNodes ? undefined : new Tone.Reverb(),
 
             busy: true
         };
@@ -317,8 +323,8 @@ const Canvas = () => {
 
             const repeatTime = (line.length / bridge.length) * bridgeRepeatTime;
 
-            if (freeOsc.synth && freeOsc.pan && freeOsc.ampEnv && freeOsc.master && freeOsc.reverb && filterRef.current) {
-                freeOsc.master.connect(filterRef.current);
+            if (freeOsc.synth && freeOsc.pan && filterRef.current) {
+                freeOsc.pan.connect(filterRef.current);
                 freeOsc.pan.pan.value = (p.percentOf(axisB, anchorB) * 2) - 1;
 
                 // freeOsc.reverb.toDestination();
@@ -326,10 +332,10 @@ const Canvas = () => {
                 // Long lines will repeat while short lines will only play once
                 if (line.length / bridge.length > 0.2) {   
                     freeOsc.synth.connect(freeOsc.pan);
-                    freeOsc.pan.connect(freeOsc.master);
-                    freeOsc.ampEnv.connect(freeOsc.master);
+                    // freeOsc.pan.connect(freeOsc.master);
+                    // freeOsc.ampEnv.connect(freeOsc.master);
 
-                    freeOsc.master.gain.value = Math.max(line.length / bridge.length, 0.75);
+                    // freeOsc.master.gain.value = Math.max(line.length / bridge.length, 0.75);
 
                     Tone.Transport.scheduleRepeat((time) => {
                         if (freeOsc.synth && bridge) freeOsc.synth.triggerAttackRelease(note, line.length / (bridge.length * 2))
@@ -338,7 +344,7 @@ const Canvas = () => {
                     note = numToScale(p.percentOf(axisA, anchorA), Scale.CHROMATIC, octaves);
 
                     freeOsc.synth.connect(freeOsc.pan);
-                    freeOsc.pan.connect(freeOsc.master);
+                    // freeOsc.pan.connect(freeOsc.master);
                     freeOsc.synth.triggerAttackRelease(note, 0.1)
                     freeOsc.busy = false;
                 }
@@ -363,8 +369,18 @@ const Canvas = () => {
     const weaveWeb = async () => {
         Tone.Transport.start();
         if (canvasRef.current != null) {
+            canvasRef.current.width = window.innerWidth - 50;
+            canvasRef.current.height = window.innerHeight - 150;
+            ctxRef.current = canvasRef.current.getContext('2d');
+
             const width = canvasRef.current.width;
             const height = canvasRef.current.height;
+
+            // Erase previous canvas
+            if (ctxRef.current) {
+                ctxRef.current.fillStyle = "white";
+                ctxRef.current.fillRect(0, 0, width, height);
+            }
 
             // GENERATE ALL THREADS AND POINTS BEFORE RENDERING
 
@@ -698,16 +714,33 @@ const Canvas = () => {
             }
 
             Tone.Transport.stop();
+            setPlaying(false);
         }   
+    }
+
+    const openCanvas = () => {
+        setPlaying(true);
+        setDisplay(true);
+        weaveWeb();
     }
 
     return (
         <div>
-            {"ORB WEAVER".split("").map((item, index) => {
-                return <Label color={'#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7)} size={"60pt"}>{item}</Label>
+            {"ORB WEAVER".split("").map((item, key) => {
+                return <Label key={key} color={'#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7)} size={"60pt"}>{item}</Label>
             })}
-            <canvas ref={canvasRef}></canvas>
-            <Button onClick={weaveWeb}>weave</Button>
+            <div onClick={() => {if (!playing) setHover(!hover)}} style={{cursor: !playing ? `pointer` : `auto`}}>
+                {hover && display && !playing && <Container height={window.innerHeight - 150}>
+                    <Button onClick={() => {
+                            setDisplay(false);
+                            setHover(false);
+                        }}>reset?</Button>
+                </Container>}
+                <canvas ref={canvasRef} style={{display: display && !hover ? `block` : `none`}}></canvas>
+            </div>
+            {!display && !playing && <Container height={window.innerHeight - 150}>
+                <Button onClick={openCanvas}>weave</Button>
+            </Container>}
         </div>
     )
 }
