@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
 import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt, numToScale, Scale } from "../utils";
 import { Button } from "./styled/Button.styled";
+import { Label } from "./styled/Label.styled";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
@@ -57,10 +58,10 @@ const Canvas = () => {
     const capCapacity = 2;
 
     // Determines how fast threads are spun
-    const speed = 2;
+    const speed = 10;
 
     const scale = Scale.PENTATONIC;
-    const octaves = 4;
+    const octaves = 5;
     const tremSpeed = 20;
     const reverbOn = true;
     const randOctaves = false;
@@ -73,7 +74,7 @@ const Canvas = () => {
         const canvas: HTMLCanvasElement | null = canvasRef.current;
         if (canvas != null) {
             canvas.width = window.innerWidth - 50;
-            canvas.height = window.innerHeight - 100;
+            canvas.height = window.innerHeight - 150;
             ctxRef.current = canvas.getContext('2d');
 
             // Initialize the canvas
@@ -702,6 +703,9 @@ const Canvas = () => {
 
     return (
         <div>
+            {"ORB WEAVER".split("").map((item, index) => {
+                return <Label color={'#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7)} size={"60pt"}>{item}</Label>
+            })}
             <canvas ref={canvasRef}></canvas>
             <Button onClick={weaveWeb}>weave</Button>
         </div>
