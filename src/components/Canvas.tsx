@@ -1,11 +1,14 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
 import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt, numToScale, Scale } from "../utils";
+import { Button } from "./styled/Button.styled";
 
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
     const ctxRef: MutableRefObject<CanvasRenderingContext2D | null> = useRef<CanvasRenderingContext2D>(null);
     const reverbRef: MutableRefObject<Tone.Reverb | null> = useRef<Tone.Reverb>(null);
+    const chorusRef: MutableRefObject<Tone.Chorus | null> = useRef<Tone.Chorus>(null);
+    const filterRef: MutableRefObject<Tone.Filter | null> = useRef<Tone.Filter>(null);
 
     const [activeLines, setActiveLines] = useState(new Array<Line>());
     const [passiveLines, setPassiveLines] = useState(new Array<Line>());
@@ -18,19 +21,23 @@ const Canvas = () => {
     var anchorB: Line | null = null;
     var bridge: Line | null = null;
 
-    interface oscState {
+    interface OscState {
         osc1: Tone.Oscillator;
-        osc2: Tone.Oscillator;
-        gain1: Tone.Gain;
-        gain2: Tone.Gain;
-        trem1: Tone.Tremolo;
-        trem2: Tone.Tremolo;
+        osc2?: Tone.Oscillator;
+        synth?: Tone.Synth;
+        gain1?: Tone.Gain;
+        gain2?: Tone.Gain;
+        trem1?: Tone.Tremolo;
+        trem2?: Tone.Tremolo;
         master: Tone.Gain;
+        pan?: Tone.Panner;
+        ampEnv?: Tone.Envelope;
+        reverb?: Tone.Reverb;
         busy: boolean;
     }
 
     // Memoized oscillators
-    var oscillators = new Array<oscState>();
+    var oscillators = new Array<OscState>();
 
     // CHANGE FOLLOWING PARAMETERS TO AFFECT HOW THE WEB GENERATION LOOKS
 
@@ -50,18 +57,23 @@ const Canvas = () => {
     const capCapacity = 2;
 
     // Determines how fast threads are spun
-    const speed = 15;
+    const speed = 2;
 
     const scale = Scale.PENTATONIC;
-    const octaves = 6;
+    const octaves = 4;
     const tremSpeed = 20;
+    const reverbOn = true;
+    const randOctaves = false;
+
+    const bridgeRepeatTime = 10;
+    const activeSound = false;
 
     // Initialize Canvas and Context
     useEffect(() => {
         const canvas: HTMLCanvasElement | null = canvasRef.current;
         if (canvas != null) {
             canvas.width = window.innerWidth - 50;
-            canvas.height = window.innerHeight - 50;
+            canvas.height = window.innerHeight - 100;
             ctxRef.current = canvas.getContext('2d');
 
             // Initialize the canvas
@@ -70,11 +82,21 @@ const Canvas = () => {
                 ctxRef.current.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            // Initialize audio
-            reverbRef.current = new Tone.Reverb();
-            reverbRef.current.toDestination();
+            
         }
-    }, [])
+        // Initialize audio
+        // if (reverbOn) {
+        //     reverbRef.current = new Tone.Reverb();
+        //     reverbRef.current.toDestination();
+        // }
+        reverbRef.current = new Tone.Reverb();
+        reverbRef.current.toDestination();
+        chorusRef.current = new Tone.Chorus().connect(reverbRef.current);
+        filterRef.current = new Tone.Filter(undefined, "lowpass").connect(chorusRef.current);
+
+        Tone.Transport.start();
+
+    }, [reverbOn]);
 
     /**
      * Spins a line of silk and sound.
@@ -96,87 +118,51 @@ const Canvas = () => {
             var prevX = line.start.x;
             var prevY = line.start.y;
 
-            // Initialize oscillators and sound parameters
-            var osc1: Tone.Oscillator | null = null;
-            var osc2: Tone.Oscillator | null = null;
-            var gain1: Tone.Gain | null;
-            var gain2: Tone.Gain | null;
-            var tremolo1: Tone.Tremolo | null;
-            var tremolo2: Tone.Tremolo | null;
-            var oscMaster: Tone.Gain | null;
-
-            var freeOsc = false;
-
+            var freeOsc: OscState | null = null;
             // Check for any free oscillators
-            for (var oscIndex = 0; oscIndex < oscillators.length; oscIndex++) {
-                if (oscillators[oscIndex].busy === false) {
-                    freeOsc = true;
-                    break;
-                }
-            }
-            if (!freeOsc) {
-                osc1 = new Tone.Oscillator();
-                osc2 = new Tone.Oscillator();
-                gain1 = new Tone.Gain(0);
-                gain2 = new Tone.Gain(0);
-                tremolo1 = new Tone.Tremolo(0, 1.0);
-                tremolo2 = new Tone.Tremolo(0, 1.0);
-                oscMaster = new Tone.Gain(0);
-                const newOscState: oscState = {
-                    osc1: osc1,
-                    osc2: osc2,
-                    gain1: gain1,
-                    gain2: gain2,
-                    trem1: tremolo1,
-                    trem2: tremolo2,
-                    master: oscMaster,
-                    busy: true
-                };
-                oscillators.push(newOscState);
-            } else {
-                osc1 = oscillators[oscIndex].osc1;
-                osc2 = oscillators[oscIndex].osc2;
-                gain1 = oscillators[oscIndex].gain1;
-                gain2 = oscillators[oscIndex].gain2;
-                tremolo1 = oscillators[oscIndex].trem1;
-                tremolo2 = oscillators[oscIndex].trem2;
-                oscMaster = oscillators[oscIndex].master;
-                oscillators[oscIndex].busy = true;
-            }
+            if (activeSound) {
+                freeOsc = getFreeOsc();
             
-            osc1.type = "sine";
-            osc2.type = "sawtooth";
+                if (freeOsc.osc2 && freeOsc.trem1 && freeOsc.trem2 && freeOsc.gain1 && freeOsc.gain2 && freeOsc.master) {
+                    freeOsc.osc1.type = "sine";
+                    freeOsc.osc2.type = "sawtooth";
 
-            // Set up pipeline of effects
-            osc1.connect(tremolo1);
-            osc2.connect(tremolo2);
-            tremolo1.connect(gain1);
-            tremolo2.connect(gain2);
-            gain1.connect(oscMaster);
-            gain2.connect(oscMaster);
-            if (reverbRef.current != null) oscMaster.connect(reverbRef.current);
+                    // Set up pipeline of effects
+                    freeOsc.osc1.connect(freeOsc.trem1);
+                    freeOsc.osc2.connect(freeOsc.trem2);
+                    freeOsc.trem1.connect(freeOsc.gain1);
+                    freeOsc.trem2.connect(freeOsc.gain2);
+                    freeOsc.gain1.connect(freeOsc.master);
+                    freeOsc.gain2.connect(freeOsc.master);
+                    if (reverbRef.current != null) {
+                        freeOsc.master.connect(reverbRef.current)
+                    } else {
+                        freeOsc.master.toDestination();
+                    };
 
-            if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
-                const startPoint = new Vector(line.start.x, line.start.y);
-                // Initialize pitch
-                osc1.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
-                osc2.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
-                // Initialize volume
-                gain1.gain.value = 1 - startPoint.percentOf(axisB, anchorB);
-                gain2.gain.value = startPoint.percentOf(axisB, anchorB);
-                // Initialize rhythm (tremolo)
-                // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
-                tremolo1.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
-                tremolo2.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
-                tremolo1.start();
-                tremolo2.start();
-                // Intialize master gain
-                oscMaster.gain.value = 1;
-                
-                osc1.start();
-                osc2.start();
-                // Slight fade in to minimize pops
-                // oscMaster.gain.rampTo(1, fadeTime);
+                    if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
+                        const startPoint = new Vector(line.start.x, line.start.y);
+                        // Initialize pitch
+                        freeOsc.osc1.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
+                        freeOsc.osc2.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
+                        // Initialize volume
+                        freeOsc.gain1.gain.value = 1 - startPoint.percentOf(axisB, anchorB);
+                        freeOsc.gain2.gain.value = startPoint.percentOf(axisB, anchorB);
+                        // Initialize rhythm (tremolo)
+                        // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
+                        freeOsc.trem1.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
+                        freeOsc.trem2.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
+                        freeOsc.trem1.start();
+                        freeOsc.trem2.start();
+                        // Intialize master gain
+                        freeOsc.master.gain.value = 1;
+                        
+                        freeOsc.osc1.start();
+                        freeOsc.osc2.start();
+                        // Slight fade in to minimize pops
+                        // oscMaster.gain.rampTo(1, fadeTime);
+                    }
+                }
             }
 
             /**
@@ -191,6 +177,8 @@ const Canvas = () => {
                 ctxRef.current?.stroke();
             }
 
+            var octaveMod = 0;
+
             /**
              * Sonifies a point p.
              * @param p Point to sonify.
@@ -198,23 +186,37 @@ const Canvas = () => {
             const soundPoint = (point: Vector): void => {
                 // Account for the starting Y
                 const p = new Vector(point.x, point.y);
-                if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
-                    // Axis A: Pitch
-                    if (osc1 && osc2) {
-                        osc1.frequency.rampTo(numToScale(p.percentOf(axisA, anchorA), scale, octaves), 0);
-                        osc2.frequency.rampTo(numToScale(p.percentOf(axisA, anchorA), scale, octaves), 0);
+                if (activeSound) {
+                    if (axisA && axisB && axisC && anchorA && anchorB && bridge && freeOsc) {
+                        // Axis A: Pitch
+                        if (freeOsc.osc1 && freeOsc.osc2) {
+                            var note = numToScale(p.percentOf(axisA, anchorA), scale, octaves);
+                            var notePitch = note.slice(0, -1);
+                            var noteOctave = parseInt(note.slice(-1));
+                            var newNote = notePitch + (noteOctave + octaveMod);
+                            var notePlayed = randOctaves ? newNote : note;
+                            freeOsc.osc1.frequency.rampTo(notePlayed, 0);
+                            freeOsc.osc2.frequency.rampTo(notePlayed, 0);
+                        }
+                        // Axis B: Timbre
+                        if (freeOsc.gain1 && freeOsc.gain2) {
+                            freeOsc.gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
+                            freeOsc.gain2.gain.rampTo(p.percentOf(axisB, anchorB));
+                        }
+                        // Axis C: Rhythm
+                        if (freeOsc.trem1 && freeOsc.trem2) {
+                            freeOsc.trem1.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
+                            freeOsc.trem2.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
+                        }
                     }
-                    // Axis B: Timbre
-                    if (gain1 && gain2) {
-                        gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
-                        gain2.gain.rampTo(p.percentOf(axisB, anchorB));
-                    }
-                    // Axis C: Rhythm
-                    if (tremolo1 && tremolo2) {
-                        tremolo1.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
-                        tremolo2.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
+                } else {
+                    if (reverbRef.current && chorusRef.current && filterRef.current && axisA && anchorA && axisB && anchorB && axisC && bridge) {
+                        reverbRef.current.wet.rampTo(p.percentOf(axisA, anchorA), 0);
+                        chorusRef.current.wet.rampTo(p.percentOf(axisB, anchorB), 0);
+                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 2000, 0);
                     }
                 }
+                
             }
 
             /**
@@ -225,7 +227,8 @@ const Canvas = () => {
                 if (t <= dist) {
                     // Randomize the color of every step so we can confirm it's drawing cumulatively
                     if (ctxRef.current != null) {
-                        ctxRef.current.strokeStyle = '#'+(0x1000000+Math.random()*0xffffff).toString(16).substr(1,6);
+                        ctxRef.current.strokeStyle = '#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7);
+                        octaveMod = randInt(-2, 2);
                     }
 
                     // BREAK THE LINE INTO STEPS TO CUMULATIVELY PLAY AND ANIMATE
@@ -242,7 +245,7 @@ const Canvas = () => {
                     // Draw the line step being spun
                     drawLine(prevPoint, newPoint);
 
-                    // Play the line step being spun
+                    // Play the line step being spun if activeSound on
                     soundPoint(newPoint);
 
                     // If the step size, as set by the speed, is too big and adding another step to the line will go over the actual distance...
@@ -259,10 +262,12 @@ const Canvas = () => {
                     window.requestAnimationFrame(lineStep);
                 } else {
                     // Stop all sound when the line is finished animating
-                    if (osc1 && osc2 && oscMaster) {
-                        osc1.stop();
-                        osc2.stop();
-                        oscillators[oscIndex].busy = false;
+                    if (activeSound && freeOsc) {
+                        if (freeOsc.osc1 && freeOsc.osc2 && freeOsc.master) {
+                            freeOsc.osc1.stop();
+                            freeOsc.osc2.stop();
+                            freeOsc.busy = false;
+                        }
                     }
                     resolve();
                 }
@@ -271,10 +276,86 @@ const Canvas = () => {
         });
     }
 
+    const getFreeOsc = (): OscState => {
+        // Check for any free oscillators
+        for (var oscIndex = 0; oscIndex < oscillators.length; oscIndex++) {
+            if (oscillators[oscIndex].busy === false) {
+                return oscillators[oscIndex];
+            }
+        }
+        const newOscState: OscState = {
+            osc1: new Tone.Oscillator(),
+            osc2: new Tone.Oscillator(),
+            synth: new Tone.Synth(),
+            gain1: new Tone.Gain(0),
+            gain2: new Tone.Gain(0),
+            trem1: new Tone.Tremolo(0, 1.0),
+            trem2: new Tone.Tremolo(0, 1.0),
+            master: new Tone.Gain(1),
+
+            pan: new Tone.Panner(),
+            ampEnv: new Tone.AmplitudeEnvelope({
+                attack: 0.1,
+                decay: 0.2,
+                sustain: 1.0,
+                release: 0.8
+            }),
+            reverb: new Tone.Reverb(),
+
+            busy: true
+        };
+        oscillators.push(newOscState);
+        return oscillators[oscIndex];
+    }
+
+    const soundPassive = (line: Line) => {
+        // Passive sound is based off the midpoint of the line
+        var p = line.pointAt(0.5);
+        if (bridge && axisA && axisB && anchorA && anchorB) {
+            var freeOsc = getFreeOsc();
+
+            var note = numToScale(p.percentOf(axisA, anchorA), scale, octaves);
+
+            const repeatTime = (line.length / bridge.length) * bridgeRepeatTime;
+
+            if (freeOsc.synth && freeOsc.pan && freeOsc.ampEnv && freeOsc.master && freeOsc.reverb && filterRef.current) {
+                freeOsc.master.connect(filterRef.current);
+                freeOsc.pan.pan.value = (p.percentOf(axisB, anchorB) * 2) - 1;
+
+                // freeOsc.reverb.toDestination();
+
+                // Long lines will repeat while short lines will only play once
+                if (line.length / bridge.length > 0.2) {   
+                    freeOsc.synth.connect(freeOsc.pan);
+                    freeOsc.pan.connect(freeOsc.master);
+                    freeOsc.ampEnv.connect(freeOsc.master);
+
+                    freeOsc.master.gain.value = Math.max(line.length / bridge.length, 0.75);
+
+                    Tone.Transport.scheduleRepeat((time) => {
+                        if (freeOsc.synth && bridge) freeOsc.synth.triggerAttackRelease(note, line.length / (bridge.length * 2))
+                    }, repeatTime);
+                } else {
+                    note = numToScale(p.percentOf(axisA, anchorA), Scale.CHROMATIC, octaves);
+
+                    freeOsc.synth.connect(freeOsc.pan);
+                    freeOsc.pan.connect(freeOsc.master);
+                    freeOsc.synth.triggerAttackRelease(note, 0.1)
+                    freeOsc.busy = false;
+                }
+            }
+        }
+    }
+
     const weaveLines = async (currentLines: Array<Line>): Promise<void[]> => {
         // Append active and passive lines into a new list
         setPassiveLines([...passiveLines, ...activeLines]);
         setActiveLines(currentLines);
+
+        // Play the line passively throughout the piece
+        currentLines.forEach(line => {
+            soundPassive(line);
+        });
         // Call spinLine() on all members of currentLines at the same time, wait until they're all done
         return await Promise.all(currentLines.map(spinLine));
     }
@@ -589,16 +670,10 @@ const Canvas = () => {
             
             // ACTUAL RENDERING OF ALL THE THREADS 
 
-            // Renders all the radii at once, useful for testing
-            // await weaveLines(radii);
-
-            // Renders aux spiral all at once
-            // await weaveLines(auxiliarySpiral);
-            // await weaveLines(captureSpiral);
-
             await weaveLines([bridge]);
             
-            await weaveLines([branchA, branchB]);
+            await weaveLines([branchA]);
+            await weaveLines([branchB]);
             await weaveLines([branchC.reverse()]);
 
             await weaveLines([anchorA]);
@@ -621,13 +696,15 @@ const Canvas = () => {
             for (let i = 0; i < captureSpiral.length; i++) {
                 await weaveLines([captureSpiral[i]]);
             }
+
+            Tone.Transport.stop();
         }   
     }
 
     return (
         <div>
             <canvas ref={canvasRef}></canvas>
-            <button onClick={weaveWeb}>weave</button>
+            <Button onClick={weaveWeb}>weave</Button>
         </div>
     )
 }
