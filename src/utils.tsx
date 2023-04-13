@@ -168,7 +168,8 @@ export class Line {
      * @returns Boolean value representing if the specified point lies on this line, inclusive of ends.
      */
     contains(point: Vector, extendedLine: boolean = false): boolean {
-        const withinBounds = Math.sign(this.start.distanceTo(point)) === Math.sign(point.distanceTo(this.end));
+        const withinBounds = Math.sign(round(this.start.distanceTo(point), 5)) === 0 || Math.sign(round(point.distanceTo(this.end), 5)) === 0 
+        || Math.sign(this.start.distanceTo(point)) === Math.sign(point.distanceTo(this.end));
         const equalDistance = round(this.start.distanceTo(point) + point.distanceTo(this.end), 5) === round(this.length, 5);
         return extendedLine ? equalDistance : equalDistance && withinBounds;
     }

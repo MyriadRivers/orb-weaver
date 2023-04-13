@@ -418,8 +418,7 @@ const Canvas = () => {
                 if (fuzzedPoint > spokes[auxI].length) fuzzedPoint = spokes[auxI].length;
 
                 const nextPoint = spokes[auxI].pointAtAbs(fuzzedPoint);
-                spokes[auxI].auxPoints.push(nextPoint);
-                console.log("Spoke " + auxI + " just got an aux point at " + fuzzedPoint);
+                spokes[auxI].auxPoints.unshift(nextPoint);
 
                 const auxLine = new Line(prevPoint, nextPoint);
                 prevPoint = nextPoint;
@@ -428,16 +427,6 @@ const Canvas = () => {
                 if (pointOnSpiral >= spokes[auxI].length) {
                     terminalSpoke = spokes[auxI];
                     terminalSpokeIndex = auxI;
-                }
-            }
-
-            // Check all the auxiliary spiral spokes, debugging
-            for (let i = 0; i < spokes.length; i++) {
-                console.log("Spoke auxliary points for spoke " + i);
-                for (let j = 0; j < spokes[i].auxPoints.length; j++) {
-                    console.log(spokes[i].lineValueAt(spokes[i].auxPoints[j]));
-                    console.log("a + b: " + (spokes[i].start.distanceTo(spokes[i].auxPoints[j]) + spokes[i].auxPoints[j].distanceTo(spokes[i].end)));
-                    console.log("length" + spokes[i].length);
                 }
             }
 
@@ -460,6 +449,7 @@ const Canvas = () => {
             };
 
             var currSpoke = terminalSpoke;
+            
             // Keep adding capture threads so long as the active ring, where the threads are going inside, has one more auxiliary ring above it
             // I.e. terminate the capture threads above the last auxiliary ring on the spoke where the auxiliary ring terminates
             for (let currRing = 0; currRing < currSpoke.auxPoints.length - 1; currRing++) {
@@ -470,14 +460,20 @@ const Canvas = () => {
                     var spokeCounter = terminalSpokeIndex;
                     // Iterate through spokes opposite the direction of the auxiliary spiral until back at starting spoke
                     for (let i = 0; i <= spokes.length; i++) {
-                        auxDir === true ? spokeCounter-- : spokeCounter++;
+
                         var spokeI = ((spokeCounter % spokes.length) + spokes.length) % spokes.length;
                         currSpoke = spokes[spokeI];
 
                         if (currRing >= currSpoke.auxPoints.length - 1) break;
 
-                        const outBound = currSpoke.auxPoints[currRing];
-                        const inBound = currSpoke.auxPoints[currRing + 1];
+                        var outBound = currSpoke.auxPoints[currRing];
+                        var inBound = currSpoke.auxPoints[currRing + 1];
+
+                        if (i === spokes.length) {
+                            outBound = currSpoke.auxPoints[currRing + 1];
+                            inBound = currSpoke.auxPoints[currRing + 2];
+                        }
+
                         const outPoint = currSpoke.lineValueAt(outBound);
                         const inPoint = currSpoke.lineValueAt(inBound);
 
@@ -492,17 +488,19 @@ const Canvas = () => {
                             const capPoint = spokes[spokeI].pointAt(pointLocation);
                             spokes[spokeI].capPoints.push(capPoint);
                             
-                            
                             if (prevCapPoint !== undefined) {
                                 const capSegment = new Line(prevCapPoint, capPoint);
-                                captureSpiral.push(capSegment);
-                                await weaveLines([capSegment]);
+                                if (capSegment.length !== 0) {
+                                    captureSpiral.push(capSegment);
+                                }
                             }
                             prevCapPoint = capPoint;
                             if (i === spokes.length) {
                                 ringEnds.push(capPoint);
+                                prevCapPoint = undefined;
                             }
                         }
+                        auxDir === true ? spokeCounter-- : spokeCounter++;
                     }
                 }
             }
@@ -513,10 +511,11 @@ const Canvas = () => {
             // ACTUAL RENDERING OF ALL THE THREADS 
 
             // Renders all the radii at once, useful for testing
-            await weaveLines(radii);
+            // await weaveLines(radii);
 
             // Renders aux spiral all at once
-            await weaveLines(auxiliarySpiral);
+            // await weaveLines(auxiliarySpiral);
+            // await weaveLines(captureSpiral);
 
             await weaveLines([bridge]);
             
@@ -530,15 +529,19 @@ const Canvas = () => {
             Math.random() < 0.5 ? await weaveLines([frameB]) : await weaveLines([frameB.reverse()]);
             Math.random() < 0.5 ? await weaveLines([frameC]) : await weaveLines([frameC.reverse()]);
 
-            // for (let i = 0; i < radii.length; i++) {
-            //     // Randomize direction of radius threads
-            //     const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
-            //     await weaveLines([randRadius]);
-            // }
+            for (let i = 0; i < radii.length; i++) {
+                // Randomize direction of radius threads
+                const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
+                await weaveLines([randRadius]);
+            }
 
-            // for (let i = 0; i < auxiliarySpiral.length; i++) {
-            //     await weaveLines([auxiliarySpiral[i]]);
-            // }
+            for (let i = 0; i < auxiliarySpiral.length; i++) {
+                await weaveLines([auxiliarySpiral[i]]);
+            }
+
+            for (let i = 0; i < captureSpiral.length; i++) {
+                await weaveLines([captureSpiral[i]]);
+            }
         }   
     }
 
