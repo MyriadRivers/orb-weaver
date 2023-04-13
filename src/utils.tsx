@@ -295,3 +295,45 @@ export const round = (num: number, decimals: number): number => {
     const magnitude = Math.pow(10, decimals);
     return Math.round(num * magnitude) / magnitude;
 }
+
+const pc = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+export enum Scale {
+    CHROMATIC = "CHROMATIC",
+    DIATONIC = "DIATONIC",
+    PENTATONIC = "PENTATONIC",
+}
+
+export const numToScale = (num: number, scale: Scale, octaves: number): string => {
+    const chromatic = [pc[0], pc[1], pc[2], pc[3], pc[4], pc[5], pc[6], pc[7], pc[8], pc[9], pc[10], pc[11]];
+    const diatonic = [pc[0], pc[2], pc[4], pc[5], pc[7], pc[9], pc[11]];
+    const pentatonic = [pc[0], pc[2], pc[4], pc[7], pc[9]];
+
+    var pcs;
+
+    switch (scale) {
+        case "CHROMATIC":
+            pcs = chromatic;
+            break;
+        case "DIATONIC":
+            pcs = diatonic;
+            break;
+        case "PENTATONIC":
+            pcs = pentatonic;
+            break;
+        default:
+            pcs = chromatic;
+    }
+
+    var notes = new Array<string>();
+    
+    for (let i = 0; i < octaves; i++) {
+        // Centers the octaves around the 4th octave
+        var octave = i + 5 - Math.ceil(octaves / 2);
+        for (let j = 0; j < pcs.length; j++) {
+            notes.push(pcs[j] + octave)
+        }
+    }
+    var note = Math.round(num * (notes.length - 1));
+    return notes[note];
+}
