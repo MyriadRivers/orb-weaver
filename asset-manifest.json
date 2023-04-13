@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.js": "/orb-weaver/static/js/main.44475eb8.js",
+    "static/media/AsketNarrowLight.svg": "/orb-weaver/static/media/AsketNarrowLight.16b9ec78224df40d0096398885290d49.svg",
+    "static/media/AsketNarrowLight.eot": "/orb-weaver/static/media/AsketNarrowLight.341d97bfb4c363880372.eot",
+    "static/media/AsketNarrowLight.ttf": "/orb-weaver/static/media/AsketNarrowLight.16beeeeaa6d853a7441e.ttf",
+    "static/media/AsketNarrowLight.otf": "/orb-weaver/static/media/AsketNarrowLight.fd20143bc811dc6055db.otf",
+    "static/media/AsketNarrowLight.woff": "/orb-weaver/static/media/AsketNarrowLight.d6dcc79db885b4be693b.woff",
+    "index.html": "/orb-weaver/index.html",
+    "main.44475eb8.js.map": "/orb-weaver/static/js/main.44475eb8.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.44475eb8.js"
+  ]
+}
