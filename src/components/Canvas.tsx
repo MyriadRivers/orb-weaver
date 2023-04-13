@@ -17,6 +17,19 @@ const Canvas = () => {
     var anchorB: Line | null = null;
     var bridge: Line | null = null;
 
+    interface oscState {
+        osc1: Tone.Oscillator;
+        osc2: Tone.Oscillator;
+        gain1: Tone.Gain;
+        gain2: Tone.Gain;
+        trem1: Tone.Tremolo;
+        trem2: Tone.Tremolo;
+        busy: boolean;
+    }
+
+    // Memoized oscillators
+    var oscillators = new Array<oscState>();
+
     // CHANGE FOLLOWING PARAMETERS TO AFFECT HOW THE WEB GENERATION LOOKS
 
     // Y value to start spinning the web from, so that it's not at the top of the screen
@@ -44,6 +57,12 @@ const Canvas = () => {
             canvas.width = window.innerWidth - 50;
             canvas.height = window.innerHeight - 50;
             ctxRef.current = canvas.getContext('2d');
+
+            if (ctxRef.current != null) {
+                // Initialize the canvas
+                ctxRef.current.fillStyle = "white";
+                ctxRef.current.fillRect(0, 0, canvas.width, canvas.height);
+            }
         }
     }, [])
 
@@ -68,17 +87,53 @@ const Canvas = () => {
             var prevY = line.start.y;
 
             // Initialize oscillators and sound parameters
-            const osc1 = new Tone.Oscillator();
-            const osc2 = new Tone.Oscillator();
+            var osc1: Tone.Oscillator | null = null;
+            var osc2: Tone.Oscillator | null = null;
+            var gain1: Tone.Gain | null;
+            var gain2: Tone.Gain | null;
+            var tremolo1: Tone.Tremolo | null;
+            var tremolo2: Tone.Tremolo | null;
+            var freeOsc = false;
 
+            console.log("how many oscillators we got? " + oscillators.length);
+
+            // Check for any free oscillators
+            for (var oscIndex = 0; oscIndex < oscillators.length; oscIndex++) {
+                if (oscillators[oscIndex].busy === false) {
+                    freeOsc = true;
+                    break;
+                }
+            }
+            if (!freeOsc) {
+                console.log("made a new oscillator lol");
+                osc1 = new Tone.Oscillator();
+                osc2 = new Tone.Oscillator();
+                gain1 = new Tone.Gain(0);
+                gain2 = new Tone.Gain(0);
+                tremolo1 = new Tone.Tremolo(0, 1.0);
+                tremolo2 = new Tone.Tremolo(0, 1.0);
+                const newOscState: oscState = {
+                    osc1: osc1,
+                    osc2: osc2,
+                    gain1: gain1,
+                    gain2: gain2,
+                    trem1: tremolo1,
+                    trem2: tremolo2,
+                    busy: true
+                };
+                oscillators.push(newOscState);
+            } else {
+                osc1 = oscillators[oscIndex].osc1;
+                osc2 = oscillators[oscIndex].osc2;
+                gain1 = oscillators[oscIndex].gain1;
+                gain2 = oscillators[oscIndex].gain2;
+                tremolo1 = oscillators[oscIndex].trem1;
+                tremolo2 = oscillators[oscIndex].trem2;
+                oscillators[oscIndex].busy = true;
+            }
+            
             osc1.type = "sine";
             osc2.type = "sawtooth";
-
-            const gain1 = new Tone.Gain(0);
-            const gain2 = new Tone.Gain(0);
-
-            const tremolo1 = new Tone.Tremolo(0, 1.0);
-            const tremolo2 = new Tone.Tremolo(0, 1.0);
 
             // Set up pipeline of effects
             osc1.connect(tremolo1);
@@ -128,14 +183,20 @@ const Canvas = () => {
                 const p = new Vector(point.x, point.y);
                 if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
                     // Axis A: Pitch
-                    osc1.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
-                    osc2.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
+                    if (osc1 && osc2) {
+                        osc1.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
+                        osc2.frequency.rampTo(220 + p.percentOf(axisA, anchorA) * 220, 0);
+                    }
                     // Axis B: Timbre
-                    gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
-                    gain2.gain.rampTo(p.percentOf(axisB, anchorB));
+                    if (gain1 && gain2) {
+                        gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
+                        gain2.gain.rampTo(p.percentOf(axisB, anchorB));
+                    }
                     // Axis C: Rhythm
-                    tremolo1.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
-                    tremolo2.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
+                    if (tremolo1 && tremolo2) {
+                        tremolo1.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
+                        tremolo2.frequency.rampTo((p.percentOf(axisC, bridge)) * 20, 0);
+                    }
                 }
             }
 
@@ -182,8 +243,11 @@ const Canvas = () => {
                 } else {
                     // Stop all sound when the line is finished animating
                     // TODO: Maybe hold the pitch a little bit so it doesn't sharp cut off?
-                    osc1.stop();
-                    osc2.stop();
+                    if (osc1 && osc2) {
+                        osc1.stop();
+                        osc2.stop();
+                        oscillators[oscIndex].busy = false;
+                    }
                     resolve();
                 }
             }
@@ -482,9 +546,8 @@ const Canvas = () => {
                             // Split auxZone into equal segments based on how many capture rings we want, represented as capCapacity
                             // Then iterate backwards from capCapacity to make rings from the outside in (e.g. 3/4, 2/4, 1/4), as radii go from the middle of the web outwards
                             // Finally add the fraction to the inner boundary to get the total lineValue of the new point
-                            const pointLocation = ((capCapacity - capCount) * (auxZone / (capCapacity + 1))) + inPoint;
+                            const pointLocation = fuzz((capCapacity - capCount) * (auxZone / (capCapacity + 1))) + inPoint;
     
-                            // NOW put the point on the line and connect them
                             const capPoint = spokes[spokeI].pointAt(pointLocation);
                             spokes[spokeI].capPoints.push(capPoint);
                             
