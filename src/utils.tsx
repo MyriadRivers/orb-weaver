@@ -213,6 +213,32 @@ export class Radius extends Line {
     }
 }
 
+interface RGB {
+    r: number;
+    g: number;
+    b: number;
+}
+
+export class RGBColor {
+    r: number;
+    g: number;
+    b: number;
+
+    constructor(rgb: RGB);
+    constructor(hex: string);
+    constructor(color: string | RGB) {
+        if (typeof color === "string") {
+            this.r = parseInt(color.substring(1, 3), 16);
+            this.g = parseInt(color.substring(3, 5), 16);
+            this.b = parseInt(color.substring(5, 7), 16);
+        } else {
+            this.r = color.r;
+            this.g = color.g;
+            this.b = color.b;
+        }
+    }
+}
+
 /**
  * Scales a number up to the randomFactor.
  * @param num Number to add some randomness to.
@@ -221,6 +247,17 @@ export class Radius extends Line {
  */
 export const fuzz = (num: number, randomFactor: number = 0.1): number => {
     return num + num * (randomFactor * (Math.random() * 2 - 1));
+}
+
+/**
+ * Clamp a number so it doesn't exceed a defined range.
+ * @param num Number to be clamped.
+ * @param min If the number is below this value, it will be set to it.
+ * @param max If the number is above this value, it will be set to it.
+ * @returns The clamped number.
+ */
+export const clamp = (num: number, min: number, max: number): number => {
+    return Math.min(max, Math.max(min, num));
 }
 
 /**
@@ -243,6 +280,14 @@ export const randInt = (min: number, max: number): number => {
     min = Math.ceil(min);
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min) + min);
+}
+
+/**
+ * Generates a random color as a hex code.
+ * @returns Hex code for a random color.
+ */
+export const randHexColor = () => {
+    return '#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7);
 }
 
 /**
@@ -296,6 +341,11 @@ export const round = (num: number, decimals: number): number => {
     return Math.round(num * magnitude) / magnitude;
 }
 
+export enum ColorMode {
+    RANDOM = "RANDOM",
+    MONOCHROME = "MONOCHROME"
+}
+
 const pc = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 export enum Scale {
@@ -304,6 +354,13 @@ export enum Scale {
     PENTATONIC = "PENTATONIC",
 }
 
+/**
+ * Turns a float from 0 to 1 to the corresponding note on a given number of scales
+ * @param num Number between 0 and 1
+ * @param scale Type of scale to use
+ * @param octaves How many octaves of the scale to append to each other
+ * @returns The specific note between the first and last notes of the total scales corresponding to the number as a percentage
+ */
 export const numToScale = (num: number, scale: Scale, octaves: number): string => {
     const chromatic = [pc[0], pc[1], pc[2], pc[3], pc[4], pc[5], pc[6], pc[7], pc[8], pc[9], pc[10], pc[11]];
     const diatonic = [pc[0], pc[2], pc[4], pc[5], pc[7], pc[9], pc[11]];
@@ -336,4 +393,22 @@ export const numToScale = (num: number, scale: Scale, octaves: number): string =
     }
     var note = Math.round(num * (notes.length - 1));
     return notes[note];
+}
+
+/**
+ * Moves a note up or down a given number of octaves.
+ * @param note Note to change pitch.
+ * @param mod How many octaves to adjust the note's pitch.
+ * @returns Note in the new octave.
+ */
+export const octave = (note: string, mod: number) => {
+    let baseNote = note.substring(0, note.length - 1);
+    let baseOct = note.substring(note.length - 1);
+    let newOct = parseInt(baseOct) + mod;
+
+    return baseNote + newOct;
+}
+
+export const randNote = (octaves: number, scale: Scale = Scale.PENTATONIC) => {
+    return numToScale(Math.random(), scale, octaves);
 }

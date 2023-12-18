@@ -1,6 +1,6 @@
 import * as Tone from "tone";
 import { MutableRefObject, useEffect, useRef, useState } from "react"
-import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt, numToScale, Scale } from "../utils";
+import { Vector, Line, fuzz, Radius, rand, degToRad, shuffle, randInt, ColorMode, RGBColor, clamp, numToScale, Scale, octave, randHexColor, randNote } from "../utils";
 import { Button } from "./styled/Button.styled";
 import { Label } from "./styled/Label.styled";
 import { Container } from "./styled/Container.styled";
@@ -8,9 +8,13 @@ import { Container } from "./styled/Container.styled";
 const Canvas = () => {
     const canvasRef: MutableRefObject<HTMLCanvasElement | null> = useRef<HTMLCanvasElement>(null);
     const ctxRef: MutableRefObject<CanvasRenderingContext2D | null> = useRef<CanvasRenderingContext2D>(null);
+    
     const reverbRef: MutableRefObject<Tone.Reverb | null> = useRef<Tone.Reverb>(null);
-    const chorusRef: MutableRefObject<Tone.Chorus | null> = useRef<Tone.Chorus>(null);
-    const filterRef: MutableRefObject<Tone.Filter | null> = useRef<Tone.Filter>(null);
+    const gainRef: MutableRefObject<Tone.Gain | null> = useRef<Tone.Gain>(null);
+    const panRef: MutableRefObject<Tone.Panner3D | null> = useRef<Tone.Panner3D>(null);
+    const synthRef: MutableRefObject<Tone.PolySynth | null> = useRef<Tone.PolySynth>(null);
+
+    const synths: MutableRefObject<Array<Tone.Synth> | null> = useRef<Array<Tone.Synth>>(null);
 
     const [activeLines, setActiveLines] = useState(new Array<Line>());
     const [passiveLines, setPassiveLines] = useState(new Array<Line>());
@@ -26,55 +30,38 @@ const Canvas = () => {
     var anchorB: Line | null = null;
     var bridge: Line | null = null;
 
-    interface OscState {
-        osc1?: Tone.Oscillator;
-        osc2?: Tone.Oscillator;
-        synth?: Tone.Synth;
-        gain1?: Tone.Gain;
-        gain2?: Tone.Gain;
-        trem1?: Tone.Tremolo;
-        trem2?: Tone.Tremolo;
-        master?: Tone.Gain;
-        pan?: Tone.Panner;
-        ampEnv?: Tone.Envelope;
-        reverb?: Tone.Reverb;
-        busy: boolean;
-    }
-
-    // Memoized oscillators
-    var oscillators = new Array<OscState>();
-
     // CHANGE FOLLOWING PARAMETERS TO AFFECT HOW THE WEB GENERATION LOOKS
 
     // Y value to start spinning the web from, so that it's not at the top of the screen
-    const initY = (window.innerHeight - 50) / 30;
+    var initY = (window.innerHeight - 50) / 30;
+    var initY2 = (window.innerHeight - 50) / 30;
+
+    // How to color the steps of the web
+    var colorMode: ColorMode = Math.random() > 0.5 ? ColorMode.RANDOM : ColorMode.MONOCHROME;
+
+    // Main color in MONOCHROME color mode
+    var mainColor = new RGBColor(randHexColor());
+
+    // How much to vary the main color in MONOCHROME mode
+    var colorFuzz = 0.1;
+
+    // Width of all threads
+    var threadWidth = 5;
 
     // Maximum gap in degrees between two radii
-    const maxRadiusAngle = 30;
+    var maxRadiusAngle = 30;
     
     // Determines how close thread can be generated to another, larger values mean more spaced out
-    const minRadiusAngleFactor = 0.25;
+    var minRadiusAngleFactor = 0.25;
 
     // Determines the number of rings in the auxiliary spiral
-    const auxRings = 5;
+    var auxRings = 5;
 
     // How many capture rings should be between two adjacent arms of the auxiliary spiral
-    const capCapacity = 2;
+    var capCapacity = 1;
 
     // Determines how fast threads are spun
-    var lineSoundPoint: number;
-    const speed = 4;
-
-    const scale = Scale.PENTATONIC;
-    const octaves = 4;
-    const tremSpeed = 20;
-    const reverbOn = true;
-    const randOctaves = false;
-
-    const bridgeRepeatTime = 10;
-    const activeSound = false;
-
-    const reduceNodes = true;
+    var speed = 30;
 
     // Initialize Canvas and Context
     useEffect(() => {
@@ -90,30 +77,183 @@ const Canvas = () => {
                 ctxRef.current.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            
+            // Initialize sounds
+            Tone.Transport.start();
+            gainRef.current = new Tone.Gain().toDestination();
+            panRef.current = new Tone.Panner3D().connect(gainRef.current)
+            reverbRef.current = new Tone.Reverb(3).connect(gainRef.current);
+            synths.current = [];
         }
-        // Initialize audio
-        // if (reverbOn) {
-        //     reverbRef.current = new Tone.Reverb();
-        //     reverbRef.current.toDestination();
-        // }
-        reverbRef.current = new Tone.Reverb(5);
-        reverbRef.current.toDestination();
-        chorusRef.current = new Tone.Chorus(15, 5, 1).connect(reverbRef.current);
-        filterRef.current = new Tone.Filter(undefined, "lowpass").connect(chorusRef.current);
+    }, []);
 
-    }, [reverbOn]);
+    const initWeb = () => {
+        // Y value to start spinning the web from, so that it's not at the top of the screen
+        initY = (window.innerHeight - 50) / randInt(4, 12);
+        initY2 = (window.innerHeight - 50) / randInt(4, 12);
+
+        // How to color the steps of the web
+        colorMode = Math.random() > 0.5 ? ColorMode.RANDOM : ColorMode.MONOCHROME;
+
+        // Main color in MONOCHROME color mode
+        mainColor = new RGBColor(randHexColor());
+
+        // How much to vary the main color in MONOCHROME mode
+        colorFuzz = Math.random() * 0.5;
+
+        // Width of all threads
+        threadWidth = randInt(1, 11);
+
+        // Maximum gap in degrees between two radii
+        maxRadiusAngle = randInt(10, 60);
+        
+        // Determines how close thread can be generated to another, larger values mean more spaced out
+        minRadiusAngleFactor = (Math.random() * 0.5) + .1;
+
+        // Determines the number of rings in the auxiliary spiral
+        auxRings = randInt(2, 8);
+
+        // How many capture rings should be between two adjacent arms of the auxiliary spiral
+        capCapacity = randInt(1, 4);
+
+        // Determines how fast threads are spun
+        speed = randInt(2, 30);
+    }
+
+    // THESE FUNCTIONS CONTROL ALL THE ACTIVE SONIFICATION
+
+    /**
+     * Initializes line for playing sound.
+     * @param line The line that's being sonified
+     * @param soundType Type/phase of the sonification/composition to play
+     */
+    const startLineSound = (line: Line, soundType: number) => {
+        if (reverbRef.current && ctxRef.current && panRef.current && synths.current) {
+            let normLine = line.length / ctxRef.current.canvas.width;
+            let maxDimension = Math.max(ctxRef.current.canvas.width, ctxRef.current.canvas.height)
+            let minDimension = Math.min(ctxRef.current.canvas.width, ctxRef.current.canvas.height)
+            let normX = (((line.start.x / ctxRef.current.canvas.width) * 2) - 1) * (maxDimension / minDimension);
+            let normY = (((line.start.y / ctxRef.current.canvas.height) * 2) - 1);
+
+            switch (soundType) {
+                case 0:
+                    let synth = new Tone.Synth({volume: -12, oscillator: {type: "sine"}}).connect(reverbRef.current);
+                    synths.current.push(synth);
+                    let note = octave(randNote(2), -1);
+
+                    Tone.Transport.scheduleRepeat(time => {
+                        synth.triggerAttackRelease(note, 1 / Math.max((normLine * speed), 0.1));
+                    }, 10 / (normLine * speed))
+    
+                    break;
+                case 1:
+                    let synth1= new Tone.Synth({volume: -15, oscillator: {type: "triangle"}}).connect(reverbRef.current);
+                    synths.current.push(synth1);
+                    let note1 = randNote(2);
+
+                    Tone.Transport.scheduleRepeat(time => {
+                        synth1.triggerAttackRelease(note1, 1 / Math.max((normLine * speed), 0.1));
+                    }, 10 / (normLine * speed))
+                    break;
+                case 2:
+                    if (!synthRef.current) {
+                        console.log("setting synth ref");
+                        synthRef.current = new Tone.PolySynth({volume: -15}).connect(panRef.current);
+                    }
+                    synthRef.current.set({oscillator: {type: "sine"}});
+
+                    let note2 = octave(randNote(2), 1);
+                    synthRef.current.triggerAttackRelease(note2, 1 / Math.max((normLine * speed), 0.1));
+                    break;
+                case 3:
+                    if (synthRef.current) {
+                        console.log("changing synth ref");
+                        synthRef.current.set({volume: -30, oscillator: {type: "sawtooth"}});
+                        let note3 = octave(randNote(2), 1);
+
+                        panRef.current.positionX.value = normX;
+                        panRef.current.positionY.value = normY;
+                        synthRef.current.triggerAttackRelease(note3, 0.1);
+                    }
+                    
+                    break;
+                default:
+                    if (synthRef.current) {
+                        console.log("changing synth ref 2");
+                        synthRef.current.set({volume: -30, oscillator: {type: "square"}});
+                        let note4 = octave(randNote(4), 1);
+
+                        panRef.current.positionX.value = normX;
+                        panRef.current.positionY.value = normY;
+                        synthRef.current.triggerAttackRelease(note4, 0.1);
+                    }
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Sonifies a point p.
+     * @param p Point to sonify.
+     * @param soundType Type/phase of the sonification/composition to play
+     */
+    const soundPoint = (point: Vector, soundType: number): void => {
+        // Account for the starting Y
+        const p = new Vector(point.x, point.y);
+    }
+
+    /**
+     * Cleans up and ends the line's sound.
+     * @param line The line that's being sonified
+     * @param soundType Type/phase of the sonification/composition to play
+     */
+    const endLineSound = (line: Line, soundType: number) => {
+        switch (soundType) {
+            case 0:
+                if (synthRef.current) {
+                    // osc1Ref.current.stop();
+                }
+                break;
+            case 1:
+                if (synthRef.current) {
+                    // osc1Ref.current.stop();
+                }
+                break;
+            default:
+        }
+    }
+
+    const startSound = () => {
+        Tone.Transport.start();
+        if (gainRef.current) {
+            gainRef.current.gain.rampTo(1, 0.1);
+        }
+    }
+
+    /**
+     * Stop and clean up all sounds at the end of the composition.
+     */
+    const endSound = () => {
+        Tone.Transport.stop();
+        if (gainRef.current) {
+            gainRef.current.gain.rampTo(0, 1);
+        }
+        if (synths.current) {
+            synths.current.forEach(node => {
+                node.dispose();
+            });
+        }
+    }
 
     /**
      * Spins a line of silk and sound.
      * @param line The line to be animated and played.
      * @returns Promise is resolved when the line is finished spinning.
      */
-    const spinLine = (line: Line): Promise<void> => {
+    const spinLine = (line: Line, soundType: number = 1): Promise<void> => {
         return new Promise(async resolve => {
             // Make the width a little more visible for now
             if (ctxRef.current != null) {
-                ctxRef.current.lineWidth = 1;
+                ctxRef.current.lineWidth = threadWidth;
             }
 
             // Set up parameters to iterate through line
@@ -124,52 +264,7 @@ const Canvas = () => {
             var prevX = line.start.x;
             var prevY = line.start.y;
 
-            var freeOsc: OscState | null = null;
-            // Check for any free oscillators
-            if (activeSound) {
-                freeOsc = getFreeOsc();
-            
-                if (freeOsc.osc1 && freeOsc.osc2 && freeOsc.trem1 && freeOsc.trem2 && freeOsc.gain1 && freeOsc.gain2 && freeOsc.master) {
-                    freeOsc.osc1.type = "sine";
-                    freeOsc.osc2.type = "sawtooth";
-
-                    // Set up pipeline of effects
-                    freeOsc.osc1.connect(freeOsc.trem1);
-                    freeOsc.osc2.connect(freeOsc.trem2);
-                    freeOsc.trem1.connect(freeOsc.gain1);
-                    freeOsc.trem2.connect(freeOsc.gain2);
-                    freeOsc.gain1.connect(freeOsc.master);
-                    freeOsc.gain2.connect(freeOsc.master);
-                    if (reverbRef.current != null) {
-                        freeOsc.master.connect(reverbRef.current)
-                    } else {
-                        freeOsc.master.toDestination();
-                    };
-
-                    if (axisA && axisB && axisC && anchorA && anchorB && bridge) {
-                        const startPoint = new Vector(line.start.x, line.start.y);
-                        // Initialize pitch
-                        freeOsc.osc1.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
-                        freeOsc.osc2.frequency.value = numToScale(startPoint.percentOf(axisA, anchorA), scale, octaves);
-                        // Initialize volume
-                        freeOsc.gain1.gain.value = 1 - startPoint.percentOf(axisB, anchorB);
-                        freeOsc.gain2.gain.value = startPoint.percentOf(axisB, anchorB);
-                        // Initialize rhythm (tremolo)
-                        // +1 to account for axis 3 going from bottom up, so percents will be negative from 0 to -1
-                        freeOsc.trem1.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
-                        freeOsc.trem2.frequency.value = (startPoint.percentOf(axisC, bridge)) * tremSpeed;
-                        freeOsc.trem1.start();
-                        freeOsc.trem2.start();
-                        // Intialize master gain
-                        freeOsc.master.gain.value = 1;
-                        
-                        freeOsc.osc1.start();
-                        freeOsc.osc2.start();
-                        // Slight fade in to minimize pops
-                        // oscMaster.gain.rampTo(1, fadeTime);
-                    }
-                }
-            }
+            startLineSound(line, soundType);
 
             /**
              * Renders a line segment on the canvas from point a to b.
@@ -183,48 +278,6 @@ const Canvas = () => {
                 ctxRef.current?.stroke();
             }
 
-            var octaveMod = 0;
-
-            /**
-             * Sonifies a point p.
-             * @param p Point to sonify.
-             */
-            const soundPoint = (point: Vector): void => {
-                // Account for the starting Y
-                const p = new Vector(point.x, point.y);
-                if (activeSound) {
-                    if (axisA && axisB && axisC && anchorA && anchorB && bridge && freeOsc) {
-                        // Axis A: Pitch
-                        if (freeOsc.osc1 && freeOsc.osc2) {
-                            var note = numToScale(p.percentOf(axisA, anchorA), scale, octaves);
-                            var notePitch = note.slice(0, -1);
-                            var noteOctave = parseInt(note.slice(-1));
-                            var newNote = notePitch + (noteOctave + octaveMod);
-                            var notePlayed = randOctaves ? newNote : note;
-                            freeOsc.osc1.frequency.rampTo(notePlayed, 0);
-                            freeOsc.osc2.frequency.rampTo(notePlayed, 0);
-                        }
-                        // Axis B: Timbre
-                        if (freeOsc.gain1 && freeOsc.gain2) {
-                            freeOsc.gain1.gain.rampTo(1 - p.percentOf(axisB, anchorB));
-                            freeOsc.gain2.gain.rampTo(p.percentOf(axisB, anchorB));
-                        }
-                        // Axis C: Rhythm
-                        if (freeOsc.trem1 && freeOsc.trem2) {
-                            freeOsc.trem1.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
-                            freeOsc.trem2.frequency.rampTo((p.percentOf(axisC, bridge)) * tremSpeed, 0);
-                        }
-                    }
-                } else {
-                    if (reverbRef.current && chorusRef.current && filterRef.current && axisA && anchorA && axisB && anchorB && axisC && bridge) {
-                        reverbRef.current.wet.rampTo(p.percentOf(axisA, anchorA), 0.1);
-                        chorusRef.current.feedback.rampTo(p.percentOf(axisB, anchorB), 0.1);
-                        filterRef.current.frequency.rampTo(p.percentOf(axisC, bridge) * 200, 0.1);
-                    }
-                }
-                
-            }
-
             /**
              * Steps through line, rendering and generating sound for each step.
              */
@@ -233,8 +286,18 @@ const Canvas = () => {
                 if (t <= dist) {
                     // Randomize the color of every step so we can confirm it's drawing cumulatively
                     if (ctxRef.current != null) {
-                        ctxRef.current.strokeStyle = '#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7);
-                        octaveMod = randInt(-2, 2);
+                        switch (colorMode) {
+                            case ColorMode.RANDOM:
+                                ctxRef.current.strokeStyle = randHexColor();
+                                break;
+                            case ColorMode.MONOCHROME:
+                                ctxRef.current.strokeStyle = `rgb(
+                                    ${clamp(fuzz(mainColor.r, colorFuzz), 0, 255)},
+                                    ${clamp(fuzz(mainColor.g, colorFuzz), 0, 255)},
+                                    ${clamp(fuzz(mainColor.b, colorFuzz), 0, 255)}
+                                )`;
+                                break;
+                        }
                     }
 
                     // BREAK THE LINE INTO STEPS TO CUMULATIVELY PLAY AND ANIMATE
@@ -252,7 +315,7 @@ const Canvas = () => {
                     drawLine(prevPoint, newPoint);
 
                     // Play the line step being spun if activeSound on
-                    soundPoint(newPoint);
+                    soundPoint(newPoint, soundType);
 
                     // If the step size, as set by the speed, is too big and adding another step to the line will go over the actual distance...
                     if (t + speed < dist) {
@@ -268,13 +331,7 @@ const Canvas = () => {
                     window.requestAnimationFrame(lineStep);
                 } else {
                     // Stop all sound when the line is finished animating
-                    if (activeSound && freeOsc) {
-                        if (freeOsc.osc1 && freeOsc.osc2 && freeOsc.master) {
-                            freeOsc.osc1.stop();
-                            freeOsc.osc2.stop();
-                            freeOsc.busy = false;
-                        }
-                    }
+                    endLineSound(line, soundType);
                     resolve();
                 }
             }
@@ -282,95 +339,28 @@ const Canvas = () => {
         });
     }
 
-    const getFreeOsc = (): OscState => {
-        // Check for any free oscillators
-        for (var oscIndex = 0; oscIndex < oscillators.length; oscIndex++) {
-            if (oscillators[oscIndex].busy === false) {
-                return oscillators[oscIndex];
-            }
-        }
-        const newOscState: OscState = {
-            osc1: reduceNodes ? undefined : new Tone.Oscillator(),
-            osc2: reduceNodes ? undefined : new Tone.Oscillator(),
-            synth: new Tone.Synth(),
-            gain1: reduceNodes ? undefined : new Tone.Gain(0),
-            gain2: reduceNodes ? undefined : new Tone.Gain(0),
-            trem1: reduceNodes ? undefined : new Tone.Tremolo(0, 1.0),
-            trem2: reduceNodes ? undefined : new Tone.Tremolo(0, 1.0),
-            master: reduceNodes ? undefined : new Tone.Gain(1),
-
-            pan: new Tone.Panner(),
-            ampEnv: reduceNodes ? undefined : new Tone.AmplitudeEnvelope({
-                attack: 0.1,
-                decay: 0.2,
-                sustain: 1.0,
-                release: 0.8
-            }),
-            reverb: reduceNodes ? undefined : new Tone.Reverb(),
-
-            busy: true
-        };
-        oscillators.push(newOscState);
-        return oscillators[oscIndex];
-    }
-
-    const soundPassive = (line: Line) => {
-        // Passive sound is based off the midpoint of the line
-        var p = line.pointAt(lineSoundPoint);
-        if (bridge && axisA && axisB && anchorA && anchorB) {
-            var freeOsc = getFreeOsc();
-
-            var note = numToScale(p.percentOf(axisA, anchorA), scale, octaves);
-
-            const repeatTime = (line.length / bridge.length) * bridgeRepeatTime;
-
-            if (freeOsc.synth && freeOsc.pan && filterRef.current) {
-                freeOsc.pan.connect(filterRef.current);
-                freeOsc.pan.pan.value = (p.percentOf(axisB, anchorB) * 2) - 1;
-
-                // freeOsc.reverb.toDestination();
-
-                // Long lines will repeat while short lines will only play once
-                if (line.length / bridge.length > 0.2) {   
-                    freeOsc.synth.connect(freeOsc.pan);
-                    // freeOsc.pan.connect(freeOsc.master);
-                    // freeOsc.ampEnv.connect(freeOsc.master);
-
-                    // freeOsc.master.gain.value = Math.max(line.length / bridge.length, 0.75);
-
-                    Tone.Transport.scheduleRepeat((time) => {
-                        if (freeOsc.synth && bridge) freeOsc.synth.triggerAttackRelease(note, line.length / (bridge.length * 2))
-                    }, repeatTime);
-                } else {
-                    note = numToScale(p.percentOf(axisA, anchorA), Scale.CHROMATIC, octaves);
-
-                    freeOsc.synth.connect(freeOsc.pan);
-                    // freeOsc.pan.connect(freeOsc.master);
-                    freeOsc.synth.triggerAttackRelease(note, 0.1)
-                    freeOsc.busy = false;
-                }
-            }
-        }
-    }
-
-    const weaveLines = async (currentLines: Array<Line>): Promise<void[]> => {
+    const weaveLines = async (currentLines: Array<Line>, soundType: number = 0): Promise<void[]> => {
         // Append active and passive lines into a new list
         setPassiveLines([...passiveLines, ...activeLines]);
         setActiveLines(currentLines);
 
         // Play the line passively throughout the piece
-        currentLines.forEach(line => {
-            soundPassive(line);
-        });
+        
+        // currentLines.forEach(line => {
+        //     // soundPassive(line);
+        // });
+        
+        // DRAWS AND ACTIVELY SOUNDS ALL LINES ONE AT A TIME
         // Call spinLine() on all members of currentLines at the same time, wait until they're all done
-        return await Promise.all(currentLines.map(spinLine));
+        return await Promise.all(currentLines.map((currentLine) => spinLine(currentLine, soundType)));
     }
 
     // Actual sequence for weaving the web
     const weaveWeb = async () => {
-        Tone.Transport.start();
+        startSound();
+        initWeb();
+
         // Web is based off a different point on the line each time
-        lineSoundPoint = Math.random();
 
         if (canvasRef.current != null) {
             canvasRef.current.width = window.innerWidth - 50;
@@ -390,7 +380,7 @@ const Canvas = () => {
 
             // Points that define the triangle
             const originA = new Vector(0, fuzz(initY, 1));
-            const originB = new Vector(width, fuzz(initY, 1));
+            const originB = new Vector(width, fuzz(initY2, 1));
             const originC = new Vector(fuzz(width / 2), height)
 
             const bisectorAAngle = (originC.getAngle(originA) - originB.getAngle(originA)) / 2 + originB.getAngle(originA);
@@ -704,34 +694,34 @@ const Canvas = () => {
             
             // ACTUAL RENDERING OF ALL THE THREADS 
 
-            await weaveLines([drawBridge]);
+            await weaveLines([drawBridge], 0);
             
-            await weaveLines([branchA]);
-            await weaveLines([branchB]);
-            await weaveLines([branchC.reverse()]);
+            await weaveLines([branchA], 0);
+            await weaveLines([branchB], 0);
+            await weaveLines([branchC.reverse()], 0);
 
-            await weaveLines([drawAnchorA]);
-            await weaveLines([drawAnchorB]);
+            await weaveLines([drawAnchorA], 0);
+            await weaveLines([drawAnchorB], 0);
 
-            Math.random() < 0.5 ? await weaveLines([frameA]) : await weaveLines([frameA.reverse()]);
-            Math.random() < 0.5 ? await weaveLines([frameB]) : await weaveLines([frameB.reverse()]);
-            Math.random() < 0.5 ? await weaveLines([frameC]) : await weaveLines([frameC.reverse()]);
+            Math.random() < 0.5 ? await weaveLines([frameA], 1) : await weaveLines([frameA.reverse()], 1);
+            Math.random() < 0.5 ? await weaveLines([frameB], 1) : await weaveLines([frameB.reverse()], 1);
+            Math.random() < 0.5 ? await weaveLines([frameC], 1) : await weaveLines([frameC.reverse()], 1);
 
             for (let i = 0; i < radii.length; i++) {
                 // Randomize direction of radius threads
                 const randRadius = Math.random() < 0.5 ? radii[i] : new Radius(radii[i].end, radii[i].start, radii[i].angle);
-                await weaveLines([randRadius]);
+                await weaveLines([randRadius], 2);
             }
 
             for (let i = 0; i < auxiliarySpiral.length; i++) {
-                await weaveLines([auxiliarySpiral[i]]);
+                await weaveLines([auxiliarySpiral[i]], 3);
             }
 
             for (let i = 0; i < captureSpiral.length; i++) {
-                await weaveLines([captureSpiral[i]]);
+                await weaveLines([captureSpiral[i]], 4);
             }
 
-            Tone.Transport.stop();
+            endSound();
             setPlaying(false);
         }   
     }
@@ -745,7 +735,7 @@ const Canvas = () => {
     return (
         <div>
             {"ORB WEAVER".split("").map((item, key) => {
-                return <Label key={key} color={'#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7)} size={"60pt"}>{item}</Label>
+                return <Label key={key} size={"60pt"}>{item}</Label>
             })}
             <div onClick={() => {if (!playing) setHover(!hover)}} style={{cursor: !playing ? `pointer` : `auto`}}>
                 {hover && display && !playing && <Container height={window.innerHeight - 150}>

@@ -16,7 +16,7 @@ export const Label = styled.label`
     }
 
     font-family: 'Asket Narrow';
-    color: ${props => props.color};
+    color: ${'#' + (0x1000000+Math.random() * 0xffffff).toString(16).slice(1, 7)};
     background: transparent;
     border: transparent;
     font-size: ${props => props.size};
